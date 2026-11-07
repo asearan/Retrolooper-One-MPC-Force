@@ -11,6 +11,10 @@ A single stereo audio-track looper: record a first take, add overdubs and keep p
 | MPC One+ | RetroLooper One 0.3.6 | MPC integration 0.2.7 | Hardware tested on modified MPC 3.10.0.49 |
 | Force | RetroLooper One 0.1.0 | Force Controls 0.1.0 | Experimental hardware test build; live functional checks pending |
 
+## Support development
+
+If Retrolooper One is useful to you, you can support its development with an optional PayPal donation. [Donate via PayPal](https://paypal.me/adamsearan).
+
 ## Install
 
 Use a current OpenMPC catalog installer. Select the **plugin for your device**; its exact matching helper is declared as a dependency and is added to the same install batch. Save your project before the installer restarts the device application. Only one RetroLooper insert effect appears in the effect picker; the helper runs in the background.
