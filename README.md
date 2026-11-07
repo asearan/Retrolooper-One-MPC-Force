@@ -9,7 +9,7 @@ A single stereo audio-track looper: record a first take, add overdubs and keep p
 | Device | Plugin | Matching helper | Status |
 |---|---|---|---|
 | MPC One+ | RetroLooper One 0.3.6 | MPC integration 0.2.7 | Hardware tested on modified MPC 3.10.0.49 |
-| Force | RetroLooper One 0.1.0 | Force Controls 0.1.0 | Experimental hardware test build; live functional checks pending |
+| Force | [Retrolooper One 0.2.5](https://github.com/asearan/Retrolooper-One-MPC-Force/releases/tag/force-v0.2.5) | Force Controls 0.2.5 | Hardware preview; Bounce to Clip tested on Force 3.10 |
 
 ## Support development
 
@@ -17,14 +17,13 @@ If Retrolooper One is useful to you, you can support its development with an opt
 
 ## Install
 
-Use a current OpenMPC catalog installer. Select the **plugin for your device**; its exact matching helper is declared as a dependency and is added to the same install batch. Save your project before the installer restarts the device application. Only one RetroLooper insert effect appears in the effect picker; the helper runs in the background.
+For direct downloads, use the clearly labeled **complete** archive for your device from [Releases](https://github.com/asearan/Retrolooper-One-MPC-Force/releases). Each complete archive contains the plugin ZIP, matching helper ZIP, README and checksums. Extract it and import both component ZIPs into one batch. The effect appears in the plugin browser; its helper runs in the background. Save your project before the installer restarts the device application.
 
-For direct downloads, use the clearly labeled **complete** archive for your device from [Releases](https://github.com/asearan/Retrolooper-One-MPC-Force/releases). Each complete archive contains the plugin ZIP, matching helper ZIP, README and checksums. For an older installer without dependency support, extract it and import both component ZIPs into one batch. Never exchange MPC and Force helpers.
+The [OpenMPC catalog submission](https://github.com/open-mpc/mpc-vst-plugins/pull/723) pins the matching helper for each device so a catalog install can add both components in the same batch. Never exchange MPC and Force helpers.
 
 - [MPC One+ installation and use](docs/MPC-ONE-PLUS.md)
-- [Force experimental installation and use](docs/FORCE.md)
+- [Force 0.2.5 release, installation and source](https://github.com/asearan/Retrolooper-One-MPC-Force/releases/tag/force-v0.2.5)
 - [Build instructions](docs/BUILDING.md)
-- [Validation and limits](docs/TESTING.md)
 
 These releases require an existing community-plugin-enabled/rooted device and the exact supported host build. They are not installers for stock firmware or Gen2 hardware.
 
@@ -39,17 +38,17 @@ These releases require an existing community-plugin-enabled/rooted device and th
 - Native Track Mute, Pad Mute and other supported performance modes regain their normal pads and colours.
 - WAV export and project recall.
 
-**Export currently writes a WAV file. Automatic placement on the native Audio timeline is not implemented.** To print insert effects into a layer, place them before RetroLooper in the channel's chain. A looper cannot record effects after its insert position.
+**Force:** Bounce to Clip can fill or replace a Matrix Audio slot. Native Undo and Arrange range verification are pending. **MPC One+:** Export writes a WAV file for manual placement. To print insert effects into a layer, place them before RetroLooper in the channel's chain. A looper cannot record effects after its insert position.
 
 The screenshots below are captures of the native-skin testbench, which uses the same artwork and control geometry. They are UI previews, not claims of additional hardware testing.
 
 ![Waveform view](docs/images/retrolooper-one-screenshot.jpg)
 ![Meter view](docs/images/retrolooper-one-meters.jpg)
 
-## Force preview — experimental
+## Force preview
 
 ![Force experimental preview](docs/images/retrolooper-force-thumbnail.jpg)
 
 ## License
 
-GPL-3.0-only; see [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md). No proprietary firmware or SDK is distributed. Source for the port, compiled engine and integration helpers is included.
+GPL-3.0-only; see [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md). No proprietary firmware or SDK is distributed. Matching Force 0.2.5 source is attached to its release.
