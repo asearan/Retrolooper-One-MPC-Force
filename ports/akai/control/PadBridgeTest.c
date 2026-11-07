@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #define _GNU_SOURCE
 #define RLO_PAD_BRIDGE_TEST 1
 #include <assert.h>

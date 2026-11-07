@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #define _GNU_SOURCE
 #define RLO_PAD_BRIDGE_TEST 1
 #include <assert.h>
@@ -24,12 +22,24 @@ static int (*next_close)(snd_rawmidi_t*)=close_fake;
 static unsigned note_for(unsigned slot){return 0x36+(slot<8?56+slot:48+slot-8);}
 static void release(unsigned slot){uint8_t b[]={0x89,note_for(slot),0};pad_input_bytes(b,3);}
 static int attack(unsigned slot){uint8_t b[]={0x99,note_for(slot),100};pad_input_bytes(b,3);assert(b[0]==0x99&&b[1]==note_for(slot));return b[2];}
+static int pick_test(void *context,unsigned pad,int press){
+ unsigned *picked=context;
+ assert(press);
+ if(*picked!=64)return 0;
+ *picked=pad;
+ return 1;
+}
 int main(void){
  RloButtonParser buttons={0};uint8_t rec[]={0xb0,0x49,127},off[]={0xb0,0x49,0};
  assert(rlo_button_bytes(&buttons,rec,2)==0&&rlo_button_bytes(&buttons,rec+2,1)==1);
  assert(!rlo_button_bytes(&buttons,rec,3));rlo_button_bytes(&buttons,off,3);
  uint8_t stream[]={0x49,127,0xf8,0x49,0};assert(rlo_button_bytes(&buttons,stream,sizeof stream)==1);
  uint8_t native[]={0x90,0x49,127,0xb0,0x50,127,0xf0,0xb0,0x49,127,0xf7};assert(!rlo_button_bytes(&buttons,native,sizeof native));
+ RloPadParser picker={0};unsigned picked=64;
+ uint8_t select[]={0x99,0x39,100,0x39,105,0xa9,0x39,88,0x89,0x39,0,0x99,0x3a,90,0x39,80};
+ rlo_pad_input(&picker,select,sizeof select,0,&picked,pick_test);
+ assert(picked==3&&!select[2]&&!select[4]&&!select[7]&&!picker.picked[3]);
+ assert(select[10]==0&&select[13]==90&&select[15]==80);
  pad_default_bank();pad_refresh_context();uint8_t rgb[48];for(unsigned i=0;i<48;++i)rgb[i]=i+1;
  assert(retrolooper_force_pad_publish(owner,11,1u|(0xffffu<<16),rgb)&RLO_PAD_PRESENT);uint32_t pad=99;
  for(unsigned i=0;i<16;++i){assert(rlo_pad_number(note_for(i))==(int)i);release(i);assert(attack(i)==0);assert(retrolooper_force_pad_take(owner,11,&pad)&&pad==i);assert(attack(i)==0&&!retrolooper_force_pad_take(owner,11,&pad));release(i);}

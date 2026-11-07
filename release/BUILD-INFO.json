@@ -1,23 +1,19 @@
 {
-  "catalog_tools_commit": "529ca367a19d31b11232783c6ded7910bdc71bd7",
-  "skin_tool_commit": "6dd48faa414bd9e3390e5824b0a0e3126f965dbd",
-  "license": "GPL-3.0-only",
-  "tested_binary_sha256": {
-    "retrolooper-one": "bc625d472d8566926d89e506cdb640e5325c3d28a260178d048f5a6d2a1c1f08",
-    "retrolooper-buttons": "1dc3f1f035ef89e1bb633009bdce3738ca39e98274f3d2cd40b10839ecc659d6",
-    "retrolooper-force": "8ddc350ce85cf4aaf2737fef81caaa7f39e7b05c68a885be0178caa81e1d5759",
-    "retrolooper-force-controls": "9e421e39afe7e293adef9e44d5b63806cfca47e23e856d86cea67b9cbca7c3a0"
+  "source_manifest_sha256": "3a4782edb20f39e99dac2e00848b4371a3870e720098451653322788aadbff1d",
+  "skin_tools_commit": "6dd48faa414bd9e3390e5824b0a0e3126f965dbd",
+  "catalog_tool_sha256": {
+    "release.py": "3aa51bfd1e9189f78d1ec629c848e1af97b062f834ef248aec990e3044c48464",
+    "catalog_check.py": "1366f73961c3d8bbb555d2400915d031b5aec158a17f362d6d6fb189c25d15c3",
+    "catalog_build.py": "b2aa401bc950342d9cbe91c34d8ee53bcbc56611058a1060d8cdc0c96f6d83e1",
+    "patch_check.py": "95d8df6e91ce3003da50274224118256655b6df60e4f0724abf425e9403cc265"
   },
-  "source_tests": "Curated source: sanitized Mac native host suite PASS",
-  "catalog_checks": "All four portable packages: --catalog --require-portable --expect-id --expect-repo PASS; zero warnings",
-  "dates_timezone": "America/New_York",
-  "test_date": "2026-11-06",
-  "copyright": "Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.",
-  "release_binary_sha256": {
-    "retrolooper-one": "bc625d472d8566926d89e506cdb640e5325c3d28a260178d048f5a6d2a1c1f08",
-    "retrolooper-buttons": "1dc3f1f035ef89e1bb633009bdce3738ca39e98274f3d2cd40b10839ecc659d6",
-    "retrolooper-force": "2bb33ce47e8083ac670e12ca8fa9dc83ee981806896e859ea88a60f776c7f8e1",
-    "retrolooper-force-controls": "9e421e39afe7e293adef9e44d5b63806cfca47e23e856d86cea67b9cbca7c3a0"
-  },
-  "force_branding_rebuild": "Force effect rebuilt from curated source to present RetroLooper One, preserving RlF1 ID and upgrade folder. Sanitized Mac Force host suite and skin checks; live functional Force validation pending."
+  "compiler": "Zig 0.13.0",
+  "target": "arm-linux-gnueabihf.2.28",
+  "cpu": "cortex_a17",
+  "artifacts_sha256": {
+    "Akai Force/RetroLooper-One-Force-0.2.10-mpc-armv7.zip": "d03782b5169cdc54fd8abae730f5aab61a711a6f620e484cc7ca33587fea88d1",
+    "MPC One+/RetroLooper-One-0.3.9-mpc-armv7.zip": "6e7b2065d8467940069c090e960f801a8b7cd9f5834ed6552bfcf84aeab9dd9b",
+    "Optional Controls/retrolooper-force-controls-0.2.10.sh": "60489f5d77f858c87a8f5f8a6bf77cc3a0cbc7c06ddfb8fa363ca24b8341d287",
+    "Optional Controls/retrolooper-mpc-controls-0.2.13.sh": "49eef0dfde51fac46cf7b678111be0fcc93c7d75bdac1a5c5b6b2b45f8637207"
+  }
 }

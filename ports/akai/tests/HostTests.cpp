@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #include "Vst2.h"
 #include "../control/TrackProtocol.h"
 #include <memory>
@@ -19,6 +17,50 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#ifdef RETROLOOPER_FORCE_BOUNCE
+#include "../control/ClipProtocol.h"
+#include <atomic>
+static std::atomic<unsigned> clipRow{0};
+static std::atomic<void*> pickerOwner{nullptr};
+static std::atomic<unsigned> clipSubmissions{0};
+static int clipCompletion=RLO_CLIP_BOUNCED;
+static std::filesystem::path bouncedPath;
+extern "C" __attribute__((visibility("default"))) int retrolooper_force_clip_target(void*,RloForceClipTarget* out) {
+    const auto row=clipRow.load();
+    *out={1,2,row,42,3,4};return row?RLO_CLIP_BOUNCED:RLO_CLIP_SELECTION_CHANGED;
+}
+extern "C" __attribute__((visibility("default"))) int retrolooper_force_clip_enqueue(void*,const RloForceClipTarget* target,const char* path,uint32_t* ticket) {
+    if(target->row!=clipRow.load())return RLO_CLIP_SELECTION_CHANGED;
+    pickerOwner.store(nullptr);bouncedPath=path;*ticket=++clipSubmissions;return RLO_CLIP_PENDING;
+}
+extern "C" __attribute__((visibility("default"))) int retrolooper_force_clip_result(uint32_t,int) {return clipCompletion;}
+extern "C" __attribute__((visibility("default"))) int retrolooper_force_picker_begin(void* effect,uint32_t) {
+    void* expected=nullptr;
+    return pickerOwner.compare_exchange_strong(expected,effect)?RLO_CLIP_PENDING:RLO_CLIP_BUSY;
+}
+extern "C" __attribute__((visibility("default"))) int retrolooper_force_picker_poll(void* effect,uint32_t,RloForceClipTarget* out,int cancel) {
+    if(pickerOwner.load()!=effect)return RLO_CLIP_SELECTION_CHANGED;
+    if(cancel){pickerOwner.store(nullptr);return RLO_CLIP_SELECTION_CHANGED;}
+    if(!clipRow.load())return RLO_CLIP_PENDING;
+    return retrolooper_force_clip_target(effect,out);
+}
+#else
+#include "../control/TimelineProtocol.h"
+static bool timelineAvailable=false;
+static int timelineResult=RLO_TIMELINE_BOUNCED;
+static std::filesystem::path timelinePath;
+extern "C" __attribute__((visibility("default"))) int retrolooper_mpc_timeline_target(void*,RloMpcTimelineTarget* out) {
+    if(!timelineAvailable)return RLO_TIMELINE_UNAVAILABLE;
+    *out={1,2,3,4};return RLO_TIMELINE_BOUNCED;
+}
+extern "C" __attribute__((visibility("default"))) int retrolooper_mpc_timeline_enqueue(void*,const RloMpcTimelineTarget* target,const char* path,uint32_t* ticket) {
+    assert(target->project==1&&target->track==2&&target->sequence==3&&target->arrangement==4);
+    timelinePath=path;*ticket=1;return RLO_TIMELINE_PENDING;
+}
+extern "C" __attribute__((visibility("default"))) int retrolooper_mpc_timeline_result(uint32_t ticket,int) {
+    assert(ticket==1);return timelineResult;
+}
+#endif
 extern "C" AEffect* VSTPluginMain(HostCallback);
 extern "C" void rlo_test_conform_delay(int);
 extern "C" uint64_t rlo_test_fallback_frames(AEffect*);
@@ -30,8 +72,9 @@ extern "C" __attribute__((visibility("default"))) uint32_t retrolooper_mpc_pad_p
     if(fx==padReceiver){std::copy_n(rgb,48,lastPadRgb.begin());lastPadEnabled=enabled;}return 15;
 }
 extern "C" __attribute__((visibility("default"))) int retrolooper_mpc_pad_take(void* fx,uint32_t,uint32_t*pad){if(fx!=padReceiver||queuedPad<0)return 0;*pad=queuedPad;queuedPad=-1;return 1;}
-static bool bridgeReady=true,bridgeDisarmed=true,bridgeInputReady=true;
+static bool bridgeSupported=true,bridgeReady=true,bridgeDisarmed=true,bridgeInputReady=true;
 extern "C" __attribute__((visibility("default"))) uint32_t retrolooper_mpc_track_status(void* fx){
+    if(!bridgeSupported)return 0;
     uint32_t result=RLO_TRACK_SUPPORTED;if(!bridgeReady)return result;
     result|=RLO_TRACK_READY|RLO_TRACK_MONITOR_ROUTED;if(fx==bridgeSelected){result|=RLO_TRACK_SELECTED;if(bridgeInputReady)result|=RLO_TRACK_INPUT_READY;if(bridgeDisarmed)result|=RLO_TRACK_DISARMED;}
     return result;
@@ -48,7 +91,19 @@ static intptr_t host(AEffect*,int32_t op,int32_t index,intptr_t,void*,float){if(
 struct Host {
     AEffect* fx=VSTPluginMain(host);double phase=0,ppqJitter=0,lastPpqNoise=0;int jitterBlock=0;std::vector<float> lastLeft,lastRight;
     std::array<std::chrono::steady_clock::time_point,param_count> lastTap{};
-    Host(bool freeRun=true,bool legacyCapture=true){assert(fx&&fx->magic==0x56737450);assert(fx->numInputs==2&&fx->numOutputs==2&&fx->numParams==param_count);fx->dispatcher(fx,effOpen,0,0,nullptr,0);if(freeRun)set(host_sync,0);fx->dispatcher(fx,effSetSampleRate,0,0,nullptr,44100);assert(fx->dispatcher(fx,effMainsChanged,0,1,nullptr,0));if(legacyCapture)set(capture_source,0);set(monitor,0);set(crossfade_ms,0);std::array<float,128> z{};float* b[]{z.data(),z.data()};fx->processReplacing(fx,b,b,128);}
+    Host(bool freeRun=true,bool legacyCapture=true,[[maybe_unused]] bool autoOffset=false){
+        assert(fx&&fx->magic==0x56737450);assert(fx->numInputs==2&&fx->numOutputs==2&&fx->numParams==param_count);
+        fx->dispatcher(fx,effOpen,0,0,nullptr,0);
+        if(freeRun)set(host_sync,0);
+        fx->dispatcher(fx,effSetSampleRate,0,0,nullptr,44100);
+        assert(fx->dispatcher(fx,effMainsChanged,0,1,nullptr,0));
+        if(legacyCapture)set(capture_source,0);
+#ifdef RETROLOOPER_FORCE_BOUNCE
+        if(!autoOffset)set(record_offset,0); // Most fixtures inject audio on the timeline.
+#endif
+        set(monitor,0);set(crossfade_ms,0);
+        std::array<float,128> z{};float* b[]{z.data(),z.data()};fx->processReplacing(fx,b,b,128);
+    }
     ~Host(){fx->dispatcher(fx,effClose,0,0,nullptr,0);}
     void set(int p,float v){fx->setParameter(fx,p,(v-parameters[p].low)/(parameters[p].high-parameters[p].low));}
     void tap(int p){
@@ -109,6 +164,86 @@ int main(){
         supplyTime=false;hostTime={};
         std::cout<<"PASS: touch/pad-only capture default, physical REC and MPC recording flags cannot capture, touch pad first take/overdub, cues blink, stopped overdub cue launches with MPC clock, loop-present purple lamp clears to dim\n";
     }
+    {
+        // An Arrange loop may start well into the timeline. Cue halfway in
+        // and verify two known audio accents against the host over several
+        // repeats and a stop/locate, with no native Controls available.
+        bridgeSupported=false;supplyTime=true;hostTime={};hostTime.sampleRate=44100;hostTime.tempo=120;
+        hostTime.timeSigNumerator=hostTime.timeSigDenominator=4;
+        hostTime.cycleStartPos=12;hostTime.cycleEndPos=20;hostTime.ppqPos=16;
+        hostTime.flags=kVstTempoValid|kVstPpqPosValid|kVstTimeSigValid|kVstCyclePosValid|kVstTransportCycleActive;
+        Host arrange(false,false);arrange.tap(record);arrange.render(128);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        hostTime.flags|=kVstTransportPlaying;
+        constexpr int quarter=22050,pulse=2048;
+        arrange.render(4*quarter-256);assert(arrange.display(status)=="ARMED");
+        arrange.render(256);
+        for(int beat=0;beat<8;++beat){
+            const float amp=beat==0?.2f:beat==5?.45f:0.f;
+            arrange.render(pulse,amp);arrange.render(quarter-pulse);
+        }
+        for(int repeat=0;repeat<3;++repeat){
+            for(int beat=0;beat<8;++beat){
+                arrange.render(pulse);
+                if(beat==0)assert(arrange.rms()>.12&&arrange.rms()<.16);
+                else if(beat==5)assert(arrange.rms()>.29&&arrange.rms()<.34);
+                else assert(arrange.rms()<.001);
+                arrange.render(quarter-pulse);
+            }
+        }
+        hostTime.flags&=~kVstTransportPlaying;arrange.render(128);
+        hostTime.ppqPos=17;hostTime.flags|=kVstTransportPlaying;arrange.render(pulse);
+        assert(arrange.rms()>.29&&arrange.rms()<.34);
+        bridgeSupported=true;supplyTime=false;hostTime={};
+        std::cout<<"PASS: standalone Arrange audio accents align to a nonzero timeline origin through repeats and locate\n";
+    }
+#ifdef RETROLOOPER_FORCE_BOUNCE
+    {
+        bridgeSupported=false;supplyTime=true;hostTime={};hostTime.sampleRate=44100;hostTime.tempo=120;
+        hostTime.timeSigNumerator=hostTime.timeSigDenominator=4;hostTime.cycleStartPos=8;hostTime.cycleEndPos=12;hostTime.ppqPos=8;
+        hostTime.flags=kVstTempoValid|kVstPpqPosValid|kVstTimeSigValid|kVstCyclePosValid|kVstTransportCycleActive;
+        Host analog(false,false,true);
+        assert(analog.display(record_offset)=="Auto (7 ms)");
+        analog.tap(record);analog.render(128);std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        hostTime.flags|=kVstTransportPlaying;
+        constexpr int delay=309,pulse=2048,period=88200,beat=22050;
+        analog.render(delay);analog.render(pulse,.2f);analog.render(period-2*pulse);analog.render(pulse,.32f);analog.render(16);
+        assert(analog.display(status)=="PLAYING");
+        auto readTake=[&](int first,int count){
+            const auto bytes=analog.save();
+            assert(u32(bytes.data()+20)==period);
+            const size_t pcm=44+4*param_count+4+16*midiTargetCount;
+            double sum=0;for(int i=first;i<first+count;++i){
+                float sample;std::memcpy(&sample,bytes.data()+pcm+4*i,4);sum+=sample*sample;
+            }
+            return std::sqrt(sum/count);
+        };
+        assert(readTake(0,pulse)>.13&&readTake(0,pulse)<.15);
+        assert(readTake(period-pulse,pulse)>.21&&readTake(period-pulse,pulse)<.24);
+        assert(readTake(beat,pulse)<.001);
+        analog.set(dub_timing,1);analog.tap(dub);analog.render(beat-16);
+        analog.render(pulse,.12f);analog.tap(dub);analog.render(16);
+        assert(analog.display(status)=="PLAYING");
+        assert(readTake(beat,pulse)>.079&&readTake(beat,pulse)<.09);
+        assert(readTake(beat+pulse,delay)<.001);
+        const auto project=analog.save();Host recalled(false,false);assert(recalled.load(project));
+        assert(recalled.display(record_offset)=="Auto (7 ms)");
+        for(const float oldOffset:{0.f,8.f}){
+            auto old=project;
+            const uint32_t oldVersion=2;
+            const float normalized=oldOffset/50;
+            std::memcpy(old.data()+4,&oldVersion,4);
+            std::memcpy(old.data()+44+record_offset*4,&normalized,4);
+            uint32_t checksum=2166136261u;
+            for(size_t i=0;i+4<old.size();++i)checksum=(checksum^old[i])*16777619u;
+            std::memcpy(old.data()+old.size()-4,&checksum,4);
+            assert(recalled.load(old));
+            assert(recalled.display(record_offset)==(oldOffset==0?"Auto (7 ms)":"8 ms"));
+        }
+        bridgeSupported=true;supplyTime=false;hostTime={};
+        std::cout<<"PASS: Force analog offset aligns first and last accents and overdubs, keeps exact loop length and recalls offset\n";
+    }
+#endif
     {
         setenv("RETROLOOPER_TEST_TRACK_GUARD","1",1);
         supplyTime=true;hostTime={};hostTime.sampleRate=44100;hostTime.tempo=120;
@@ -667,12 +802,40 @@ int main(){
             assert(u32(saved.data()+20)==88200);
         }
         std::cout<<"PASS: four overdub undo/redo levels and project recall using compact sequence-sized storage\n";
-        // Missing cycle information must be visible; never assume four bars.
-        supplyTime=true;hostTime={};hostTime.tempo=120;hostTime.flags=kVstTempoValid|kVstPpqPosValid|kVstTransportPlaying;
-        Host unavailable(false);unavailable.set(host_sync,1);unavailable.tap(record);unavailable.render(44100,.2);
-        assert(unavailable.display(status)=="ARMED");assert(unavailable.display(duration)=="0.00 SEC");assert(unavailable.display(sequence_info)=="WAIT MPC LENGTH");
-        supplyTime=false;
-        std::cout<<"PASS: MPC start/stop owns loop transport; sequence /2, x1, x2 close at exact frame counts, x2 spans wraps, jitter tolerated, missing length waits, channel monitoring unity and independent click suppressed\n";
+        std::cout<<"PASS: MPC start/stop owns loop transport; sequence /2, x1, x2 close at exact frame counts, x2 spans wraps, jitter tolerated, channel monitoring unity and independent click suppressed\n";
+    }
+    {
+        for(bool noSymbols:{true,false}){
+            supplyTime=true;hostTime={};hostTime.tempo=120;hostTime.flags=kVstTempoValid|kVstPpqPosValid;
+            bridgeSupported=false;
+            setenv("RETROLOOPER_TEST_TRACK_GUARD","1",1);
+            if(noSymbols)setenv("RETROLOOPER_TEST_NO_CONTROLS","1",1);
+            Host portable(false),other(false);
+            unsetenv("RETROLOOPER_TEST_NO_CONTROLS");unsetenv("RETROLOOPER_TEST_TRACK_GUARD");
+            portable.set(bars,1);
+            for(int i=0;i<100&&portable.display(sequence_info)!="TAKE 1 B";++i){
+                portable.render(128);std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            }
+            assert(portable.display(capture_source)=="Touch/Pads"&&portable.display(sequence_info)=="TAKE 1 B");
+            assert(portable.display(pad_status)=="TOUCH PADS / MIDI");
+            std::this_thread::sleep_for(std::chrono::milliseconds(130));portable.render(128);
+            ++physicalRecordPresses;
+            hostTime.flags|=kVstTransportRecording;
+            portable.render(128,.2f);assert(portable.display(status)=="EMPTY");
+            portable.set(pad_bank_enabled,0); // Hardware setting does not disable on-screen pads.
+            portable.tap(pad_press_01);portable.render(128);assert(portable.display(status)=="ARMED");
+            hostTime.flags|=kVstTransportPlaying;portable.render(88200,.2f);portable.render(128);
+            assert(portable.display(status)=="PLAYING"&&u32(portable.save().data()+20)==88200);
+            assert(other.display(status)=="EMPTY");
+            portable.tap(dub);portable.render(128,.1f);assert(portable.display(status)=="OVERDUB");
+            portable.tap(dub);portable.render(128);assert(portable.display(status)=="PLAYING");
+#ifdef RETROLOOPER_FORCE_BOUNCE
+            portable.tap(bounce_clip);assert(portable.display(message)=="FORCE CONTROLS NEEDED");
+#endif
+            hostTime.flags&=~kVstTransportPlaying;portable.render(128);assert(portable.display(status)=="STOPPED");
+            bridgeSupported=true;supplyTime=false;
+        }
+        std::cout<<"PASS: absent or incompatible Controls: manual take length on host clock, touch pads, local overdub and independent instances\n";
     }
     {
         // A real v0.1.8 state has 169 params and 51 mapping targets. The old
@@ -716,6 +879,60 @@ int main(){
     a.stopLoop();a.tap(reverse);a.waitJob();assert(a.display(message)=="EDIT COMPLETE");
     a.set(file_slot,61);const auto directory=std::getenv("RETROLOOPER_TEST_LOOPS");assert(directory);std::filesystem::remove(std::filesystem::path(directory)/"Loop-61.wav");std::filesystem::remove(std::filesystem::path(directory)/"Loop-62.wav");
     a.tap(export_audio);a.waitJob();assert(a.display(message)=="WAV EXPORTED");
+#ifdef RETROLOOPER_FORCE_BOUNCE
+    {
+        static_assert(bounce_clip==266&&record_offset==270&&midiTargetCount==63);
+        Host empty;empty.tap(bounce_clip);assert(empty.display(message)=="NO LOOP AUDIO"&&clipSubmissions==0);
+        clipRow=0;a.tap(bounce_clip);assert(a.display(message)=="PICK PAD OR MATRIX"&&clipSubmissions==0);
+        const float lamp=a.fx->getParameter(a.fx,clip_indicator);
+        for(int i=0;i<70&&a.fx->getParameter(a.fx,clip_indicator)==lamp;++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        assert(a.fx->getParameter(a.fx,clip_indicator)!=lamp&&clipSubmissions==0);
+        a.tap(bounce_clip);
+        for(int i=0;i<100&&pickerOwner.load();++i)std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        assert(!pickerOwner.load()&&clipSubmissions==0);
+        a.tap(bounce_clip);clipRow=2;
+        for(int i=0;i<200&&a.display(message)!="BOUNCED TO CLIP";++i)std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        assert(a.display(message)=="BOUNCED TO CLIP"&&clipSubmissions==1);
+        const auto file=readWave(bouncedPath);
+        assert(bouncedPath.filename().string().starts_with("Bounce-")&&file.rate==44100&&file.left.size()==44100);
+        assert(std::any_of(file.left.begin(),file.left.end(),[](float v){return std::abs(v)>.1f;}));
+        assert(a.display(file_slot)=="Slot 61");
+        std::filesystem::remove(bouncedPath);
+        a.set(record_offset,11);
+        auto saved=a.save();
+        const int viewAction=1+static_cast<int>(std::find_if(midiVisibleTargets,midiVisibleTargets+midiVisibleCount,[](int i){return midiTargets[i]==view;})-midiVisibleTargets);
+        for(const auto [oldCount,oldTargets]:{std::pair{266u,59u},std::pair{270u,62u},std::pair{271u,63u}}){
+            std::vector<uint8_t> old(saved.begin(),saved.begin()+44+oldCount*4);
+            std::memcpy(old.data()+8,&oldCount,4);
+            const float oldPad=viewAction/static_cast<float>(oldTargets-7);
+            std::memcpy(old.data()+44+pad_a_14*4,&oldPad,4);
+            const auto* n=reinterpret_cast<const uint8_t*>(&oldTargets);
+            old.insert(old.end(),n,n+4);
+            const auto bindings=44+param_count*4+4;
+            for(int g=0;g<4;++g)old.insert(old.end(),saved.begin()+bindings+g*midiTargetCount*4,saved.begin()+bindings+(g*midiTargetCount+oldTargets)*4);
+            old.insert(old.end(),saved.begin()+bindings+4*midiTargetCount*4,saved.end()-4);
+            uint32_t hash=2166136261u;for(auto v:old)hash=(hash^v)*16777619u;
+            const auto* sum=reinterpret_cast<const uint8_t*>(&hash);old.insert(old.end(),sum,sum+4);
+            Host migrated;assert(migrated.load(old));assert(migrated.display(pad_a_14)=="View");assert(migrated.display(duration)==a.display(duration));
+            assert(migrated.display(record_offset)==(oldCount==271?"11 ms":"Auto (7 ms)"));
+        }
+        std::cout<<"PASS: Force Clip blinks, cancels and bounces immediately after a pick, preserves WAV slots, and recalls earlier audio, pads and offset\n";
+    }
+#else
+    {
+        timelineAvailable=true;
+        a.tap(export_audio);a.waitJob();assert(a.display(message)=="BOUNCED TO TRACK");
+        const auto file=readWave(timelinePath);
+        assert(file.rate==44100&&file.left.size()==44100&&a.display(file_slot)=="Slot 61");
+        std::filesystem::remove(timelinePath);
+        timelineResult=RLO_TIMELINE_OCCUPIED;
+        a.tap(export_audio);a.waitJob();assert(a.display(message)=="OVERLAP | WAV SAVED"&&waveExists(timelinePath));
+        std::filesystem::remove(timelinePath);
+        timelineAvailable=false;
+        std::cout<<"PASS: MPC Export dispatches the rendered loop to the current timeline target and retains a WAV on overlap\n";
+    }
+#endif
     a.tap(clear);a.render(128);assert(a.display(status)=="EMPTY");a.tap(import_audio);a.waitJob();assert(a.display(message)=="WAV IMPORTED");assert(a.display(status)=="STOPPED");
     const auto wav=readWave(std::filesystem::path(directory)/"Loop-61.wav");assert(wav.left.size()==44100&&wav.right.size()==44100);
     const auto firstExport=wav;

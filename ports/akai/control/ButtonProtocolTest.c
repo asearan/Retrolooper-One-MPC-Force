@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #include "ButtonProtocol.h"
 #include <assert.h>
 #include <stdio.h>

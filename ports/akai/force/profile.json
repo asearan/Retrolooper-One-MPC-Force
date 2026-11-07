@@ -1,9 +1,9 @@
 {
-  "name": "RetroLooper One",
+  "name": "Retrolooper One",
   "vendor": "RetroLooper",
   "uid": "RlF1",
-  "version": 100,
-  "release": "0.1.0",
+  "version": 210,
+  "release": "0.2.10",
   "so": "retrolooper_force.so",
   "target": "arm-linux-gnueabihf.2.28",
   "cpu": "cortex_a17",
@@ -12,9 +12,10 @@
     628
   ],
   "bridge_prefix": "retrolooper_force_",
-  "native_integration": "Installed on provided Force; exact image/Audio graph, isolated helper tests, native UI readiness and RGB learning passed. Live capture/editor/pad actions and Arrange timing pending.",
-  "capture_policy": "Requires fingerprinted Force Controls helper; missing or stale ownership fails closed",
+  "native_integration": "Force hardware test build. The touchscreen Pads layout and physical Track Select were verified on Force. Global Arrange range verification is pending.",
+  "capture_policy": "Touch/MIDI capture works without Controls; compatible Controls adds selected-track ownership and disarm",
   "physical_pad_mapping": "P1-P8 bottom row; P9-P16 row above; editor-scoped",
-  "loop_source": "Global Arrange loop (VST2 cycle positions; live hardware timing validation pending)",
-  "folder_name": "RetroLooper Force"
+  "loop_source": "Force VST2 cycle positions; global Arrange range verification pending",
+  "folder_name": "Retrolooper One",
+  "controls_name": "Retrolooper One Force Controls"
 }

@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 // Port-only public methods, included inside LooperEngine by build.py.
 std::size_t hostThresholdFrames_=0,hostThresholdOffset_=0;
 std::int64_t hostThresholdOrigin_=0;

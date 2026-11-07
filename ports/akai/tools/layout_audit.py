@@ -1,5 +1,3 @@
-# Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-# SPDX-License-Identifier: GPL-3.0-only
 """Audit the built device UI: physical bounds/target sizes, text sizes and foreground contrast."""
 import json
 from pathlib import Path
@@ -18,6 +16,17 @@ def main():
     doc=json.loads((ROOT/'preview/controls.json').read_text());errors=[];targets=[];readouts=[]
     for page in doc['tabs']:
         interactive=[c for c in page['widgets'] if c['kind']!='readout']
+        if doc.get('compact_pads') and page['name']=='Pads':
+            pads={c['key']:c for c in interactive}
+            for i in range(1,17):
+                play,assign=(pads[f'{key}_{i:02}'] for key in ('pad_press','pad_a'))
+                geometry=('x','y','w','h')
+                if (play['w']!=play['h'] or any(play[k]!=assign[k] for k in geometry)
+                    or play['condition']['value']!=0 or assign['condition']['value']!=1):
+                    errors.append(f'Pads: P{i} must have the same square bounds in Play and Assign')
+                x,y,w,h=play['art']
+                if x<play['x'] or y<play['y'] or x+w>play['x']+play['w'] or y+h>play['y']+play['h'] or h*play['frames']>4096:
+                    errors.append(f'Pads: P{i} indicator art leaves the pad or exceeds its texture budget')
         for i,c in enumerate(interactive):
             for other in interactive[i+1:]:
                 if c.get('condition') and other.get('condition') and c['condition']['param']==other['condition']['param'] and c['condition']['value']!=other['condition']['value']:continue

@@ -1,5 +1,3 @@
-# Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-# SPDX-License-Identifier: GPL-3.0-only
 """Touch-first 1280x628 native skin. One geometry manifest drives native and browser controls."""
 import copy
 import json
@@ -39,7 +37,7 @@ def brand(d):
     for i,c in enumerate(colors):
         y=12+i*8;d.polygon(((20,y),(94,y),(89,y+7),(20,y+7)),fill=c)
     label(d,(108,25),'RETROLOOPER',44,TEXT,'lm',True)
-    label(d,(111,54),'S I N G L E   T R A C K',18,MUTED,'lm')
+    label(d,(111,54),'ONE / SINGLE TRACK',18,MUTED,'lm')
 
 # Extract only the colored glyphs from the supplied sprite atlas. All surrounds
 # and type are rebuilt at native resolution, avoiding stretched JPEG captions.
@@ -138,11 +136,12 @@ def pad_button_art(path,w,h):
             atlas.alpha_composite(cell.resize((w,h),Image.Resampling.LANCZOS),(0,(index*2+lit)*h))
     atlas.save(path)
 
-def build(skin,S):
+def build(skin,S,compact_pads=False):
     skin=Path(skin);tui=json.loads((skin/'TUI.json').read_text());pd=tui['pageData']
     tabs,_=S.parse_layout(str(ROOT/'layout.conf'))
     pd['componentDefinitions']['localComponentDefinitions']=[];definitions=pd['componentDefinitions']['localComponentDefinitions']
     manifest={'width':1280,'height':628,'tabs':[],'assets':[]}
+    if compact_pads:manifest['compact_pads']=True
     definitions_seen=set();assets=set()
     def local(key,actions,children):
         if key not in definitions_seen:definitions.append(S._local(key,actions,children));definitions_seen.add(key)
@@ -173,9 +172,17 @@ def build(skin,S):
             d.line((24,480,1256,480),fill=LINE)
         elif ti==2:panel(d,(24,80,1256,232))
         elif tab['name']=='PADS':
-            for row in range(4):
-                for col in range(4):panel(d,(24+312*col,86+124*row,328+312*col,202+124*row))
-            label(d,(640,604),'PLAY: TAP TO TRIGGER · ASSIGN: TURN KNOBS / Q-LINKS TO CHANGE FUNCTIONS',22,MUTED,'mm')
+            if compact_pads:
+                for pad in (w for w in tab['widgets'] if w['key'].startswith('pad_press_')):
+                    x=pad['cx']-pad['w']//2
+                    y=pad['cy']-pad['h']//2-86
+                    panel(d,(x,y,x+pad['w']-1,y+pad['h']-1))
+                    label(d,(pad['cx'],y-18),pad['label'],24,TEXT,'mm')
+                label(d,(640,589),'PLAY: TAP A PAD   ·   ASSIGN: DRAG A KNOB OR TURN A Q-LINK',23,MUTED,'mm')
+            else:
+                for row in range(4):
+                    for col in range(4):panel(d,(24+312*col,86+124*row,328+312*col,202+124*row))
+                label(d,(640,604),'PLAY: TAP TO TRIGGER · ASSIGN: TURN KNOBS / Q-LINKS TO CHANGE FUNCTIONS',22,MUTED,'mm')
         elif tab['name']=='MIDI':
             panel(d,(24,80,1256,176))
             label(d,(48,116),'MIDI ASSIGNMENTS',28,TEXT,'lm',True)
@@ -189,16 +196,19 @@ def build(skin,S):
             kind=w['kind'];param=w['key'];condition=dict(param='pad_edit_mode',value=0 if param.startswith('pad_press_') else 1,max=1) if tab['name']=='PADS' and (param.startswith('pad_press_') or param.startswith('pad_a_')) else None;p=PARAMS[INDEX[param]];cx=w['cx'];cy=w['cy'];caption=w.get('label','')
             if kind=='button' and param.startswith('pad_press_'):
                 ww,hh=w['w'],w['h'];x=cx-ww/2;y=cy-hh/2;number=int(param[-2:]);assignment=f'pad_a_{number:02}';face=f'pad_face_{number:02}'
-                label(d,(x,y-86-10),caption,24,MUTED,'ls')
-                file=f'rlo_padbutton_{ww}_{hh}.png';frames=2*(len(VISIBLE_MIDI_TARGETS)+1)
-                if file not in assets:pad_button_art(skin/file,ww,hh);assets.add(file)
+                if not compact_pads:label(d,(x,y-86-10),caption,24,MUTED,'ls')
+                fx,fy,fw,fh=(12,12,ww-24,14) if compact_pads else (0,0,ww,hh)
+                vx,vy,vw,vh=(6,36,ww-12,hh-52) if compact_pads else (12,14,ww-24,hh-20)
+                size=22 if compact_pads else 26
+                file=f'rlo_padbutton_{fw}_{fh}.png';frames=2*(len(VISIBLE_MIDI_TARGETS)+1)
+                if file not in assets:pad_button_art(skin/file,fw,fh);assets.add(file)
                 hit=S.write_hit_png(str(skin),ww,hh);assets.add(hit);key=f'rlo_padbutton_{ww}_{hh}'
                 local(key,[S._action('Mouse Down','Toggle Switch'),S._action('Enter Pressed','Toggle Switch')],[S._focus(ww,hh),
-                    S._sub('Knob',{'version':1,'knobType':'FilmStrip','filmStrip':file,'numFrames':frames-1,'handleName':'Face'},S._bounds(0,0,ww,hh),'PadFace'),
-                    S._value_label(12,14,ww-24,hh-20,26,TEXT[1:],'horizontallyCentred verticallyCentred',handle='Assignment',font='Roboto',style='Medium'),
+                    S._sub('Knob',{'version':1,'knobType':'FilmStrip','filmStrip':file,'numFrames':frames-1,'handleName':'Face'},S._bounds(fx,fy,fw,fh),'PadFace'),
+                    S._value_label(vx,vy,vw,vh,size,TEXT[1:],'horizontallyCentred verticallyCentred',handle='Assignment',font='Roboto',style='Medium'),
                     S._button(hit,hit,1,1,ww,hh)])
                 place(page,key,param,x,y,ww,hh,{'Face':INDEX[face],'Assignment':INDEX[assignment]})
-                controls.append(dict(kind='padbutton',key=param,label=caption,x=x,y=y,w=ww,h=hh,strip=file,frames=frames,face=face,assignment=assignment,feedback=f'pad_indicator_{number:02}',value=[x+12,y+14,ww-24,hh-20],size=26))
+                controls.append(dict(kind='padbutton',key=param,label=caption,x=x,y=y,w=ww,h=hh,strip=file,frames=frames,face=face,assignment=assignment,feedback=f'pad_indicator_{number:02}',art=[x+fx,y+fy,fw,fh],value=[x+vx,y+vy,vw,vh],size=size))
             elif kind=='button':
                 ww,hh=w['w'],w['h'];x=cx-ww/2;y=cy-hh/2
                 boolean=p['kind']!='trigger';base=f'rlo_button_{param}_{ww}_{hh}'
@@ -225,7 +235,7 @@ def build(skin,S):
                         variant=key+f'_lamp_{lit}';picture=base+('_on.png' if lit else '_off.png')
                         local(variant,actions,children(picture,picture))
                         place(page,variant,param,x,y,ww,hh,extra)
-                        page[-1]['bounds']['additionalInvalidatingHandles']=[f'IndexedEnabling/{lit}/2/Parameter {INDEX[feedback]}']
+                        page[-1]['bounds'].setdefault('additionalInvalidatingHandles',[]).append(f'IndexedEnabling/{lit}/2/Parameter {INDEX[feedback]}')
                 else:
                     local(key,actions,children(base+'_on.png',base+'_off.png'))
                     place(page,key,param,x,y,ww,hh,extra)
@@ -262,7 +272,12 @@ def build(skin,S):
                 r=w['r'];s=2*r+10;ww=w['bw'];compact=bool(w.get('compact'));side=w.get('lay')=='side' and not compact
                 assignment=bool(p.get('pad_assignment'));frames=KNOB_FRAMES
                 file=f'rlo_knob_{r}.png'
-                if compact:
+                if compact_pads and assignment:
+                    hh=ww;x=cx-ww/2;y=cy-hh/2
+                    children=[S._sub('Knob',{'version':1,'knobType':'FilmStrip','filmStrip':file,'numFrames':frames-1,'handleName':'Data'},S._bounds((ww-s)//2,10,s,s),'Knob'),
+                              S._value_label(6,hh-40,ww-12,30,22,TEXT[1:],'horizontallyCentred verticallyCentred',font='Roboto',style='Medium')]
+                    vr=(x+6,y+hh-40,ww-12,30)
+                elif compact:
                     hh=124;x=cx-ww/2;y=cy-hh/2
                     label(d,(cx,y-86+13),caption,24,TEXT,'mm')
                     children=[S._sub('Knob',{'version':1,'knobType':'FilmStrip','filmStrip':f'rlo_knob_{r}.png','numFrames':KNOB_FRAMES-1,'handleName':'Data'},S._bounds((ww-s)//2,28,s,s),'Knob'),S._value_label(0,96,ww,28,24,TEXT[1:],'horizontallyCentred verticallyCentred',font='Roboto',style='Medium')]
@@ -282,7 +297,8 @@ def build(skin,S):
                 key=f'rlo_knob_control_{r}_{ww}_{hh}_{int(side)}'
                 local(key,[S._action('Mouse Down','Q-Link'),S._action('Double Click','Show Overlay','knob overlay')],[S._focus(ww,hh)]+children)
                 place(page,key,param,x,y,ww,hh)
-                controls.append(dict(kind='knob',key=param,label=caption or p['name'],x=x,y=y,w=ww,h=hh,strip=file,frames=frames,art=[x if side else cx-s/2,y+28 if compact else y+(hh-s)//2 if side else cy-s/2,s,s],value=list(vr),size=22 if assignment else 24 if compact else 26 if side and ti==0 else 36 if side else 28))
+                art_y=y+10 if compact_pads and assignment else y+28 if compact else y+(hh-s)//2 if side else cy-s/2
+                controls.append(dict(kind='knob',key=param,label=caption or p['name'],x=x,y=y,w=ww,h=hh,strip=file,frames=frames,art=[x if side else cx-s/2,art_y,s,s],value=list(vr),size=22 if assignment else 24 if compact else 26 if side and ti==0 else 36 if side else 28))
             elif kind=='slider_h':
                 ww,hh=w['w'],w['h'];x=cx-ww/2;y=cy-hh/2
                 label(d,(x,y-86-14),caption,24,MUTED,'ls')
@@ -354,15 +370,20 @@ def preview(skin,S,manifest):
         im.alpha_composite(cell,(x,y-86))
     visuals=json.loads((ROOT/'preview/visuals.json').read_text())
     for ti,tab in enumerate(manifest['tabs']):
-        for mode in (range(3) if ti==0 else (0,)):
+        assign_preview=manifest.get('compact_pads') and tab['name']=='Pads'
+        for mode in (range(3) if ti==0 else range(2) if assign_preview else (0,)):
             im=Image.open(skin/tab['background']).convert('RGBA')
+            def visible(control):
+                condition=control.get('condition')
+                return not condition or condition['value']==(mode if assign_preview else default(condition['param']))
             for c in tab['widgets']:
-                if c.get('condition') and default(c['condition']['param'])!=c['condition']['value']:continue
+                if not visible(c):continue
                 if c['kind'] in ('button','option'):
                     selected=bool(default(c.get('feedback') or c['key'])>.5) if c['kind']=='button' else round(default(c['key'])*(len(PARAMS[INDEX[c['key']]]['options'])-1))==c['option']
                     if c['key']=='view':selected=mode==c['option']
+                    if assign_preview and c['key']=='pad_edit_mode':selected=mode==c['option']
                     img=Image.open(skin/c['on' if selected else 'off']).convert('RGBA');im.alpha_composite(img,(round(c['x']),round(c['y']-86)))
-                elif c['kind']=='padbutton':strip(im,c['strip'],[c[k] for k in ('x','y','w','h')],c['frames'],default(c['face']))
+                elif c['kind']=='padbutton':strip(im,c['strip'],c['art'],c['frames'],default(c['face']))
                 elif c['kind']=='knob':strip(im,c['strip'],c['art'],c['frames'],default(c['key']))
                 elif c['kind']=='slider':strip(im,c['strip'],[c[k] for k in ('x','y','w','h')],c['frames'],default(c['key']))
             if ti==0:
@@ -373,7 +394,7 @@ def preview(skin,S,manifest):
                     else:im.alpha_composite(Image.open(skin/c['image']).convert('RGBA'),(c['x'],c['y']-86))
             dr=ImageDraw.Draw(im)
             for c in tab['widgets']:
-                if c.get('condition') and default(c['condition']['param'])!=c['condition']['value']:continue
+                if not visible(c):continue
                 if c['kind']=='readout':
                     x,y,w,h=(c[k] for k in ('x','y','w','h'));color=c.get('colors',[c['color']])[0] if c.get('colors') else c['color']
                     label(dr,(x if c['align']=='left' else x+w/2,y-86+h/2),default_text(c['key']),c['size'],color,'lm' if c['align']=='left' else 'mm')
@@ -384,5 +405,5 @@ def preview(skin,S,manifest):
             for c in tab['widgets']:
                 if c.get('badge'):
                     b=c['badge'];label(dr,(b['x']+b['w']/2,b['y']-86+b['h']/2),default_text(b['key']),b['size'],MUTED,'mm')
-            file=f'skin-{ti}.png' if mode==0 else f'skin-{ti}_view-{mode}.png'
+            file=f'skin-{ti}.png' if mode==0 else f'skin-{ti}_assign.png' if assign_preview else f'skin-{ti}_view-{mode}.png'
             im.convert('RGB').save(ROOT/'preview'/file)

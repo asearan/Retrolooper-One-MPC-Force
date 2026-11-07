@@ -1,5 +1,3 @@
-# Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-# SPDX-License-Identifier: GPL-3.0-only
 """Build and preview the production hardware UI over the generated Q-Link map."""
 import argparse
 from pathlib import Path
@@ -15,7 +13,7 @@ import hardware_ui
 import visual_skin
 import layout_audit
 
-skin=ROOT/'build/skin/RetroLooper - VST - RetroLooper One/Plugin Skins'
+skin=ROOT/'build/skin/RetroLooper - VST - Retrolooper One/Plugin Skins'
 (ROOT/'preview').mkdir(exist_ok=True)
 manifest=hardware_ui.build(skin,shadow_skin)
 visual_skin.make(skin,shadow_skin)

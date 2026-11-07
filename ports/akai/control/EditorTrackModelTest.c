@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #define _GNU_SOURCE
 #define _FILE_OFFSET_BITS 64
 #define RLO_TRACK_BRIDGE_TEST 1
@@ -43,7 +41,7 @@ int main(void){
  show(1,0);RloEditorOwner owner;assert(editor_owner(&owner)&&owner.track==(uintptr_t)track[1]&&owner.effect==(uintptr_t)fx[1]);
  ui_refresh();assert(selections==1&&native_word((uintptr_t)project+0xa0)==(uintptr_t)track[1]);
  assert(visible_editor_fx==(uintptr_t)fx[1]&&snapshots[snapshot_active].editor_fx==(uintptr_t)fx[1]);
- assert(native_word((uintptr_t)program[1]+0x26f0)==1&&native_word((uintptr_t)program[0]+0x26f0)==0);
+ assert(native_word((uintptr_t)program[1]+0x26f0)==MONITOR_MERGE&&native_word((uintptr_t)program[0]+0x26f0)==0);
  ui_refresh();assert(selections==1); /* Repeated parameter/UI polling never selects again. */
  put(project,0xa0,(uintptr_t)track[0]);ui_refresh();assert(selections==1&&native_word((uintptr_t)project+0xa0)==(uintptr_t)track[0]);
  pad_default_bank();pad_refresh_context();assert(!pad_owner(fx[0])&&!pad_owner(fx[1])); /* A mismatched visible editor cannot trigger the other track. */

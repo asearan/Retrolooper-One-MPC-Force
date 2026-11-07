@@ -1,0 +1,223 @@
+#!/bin/sh
+# Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
+# SPDX-License-Identifier: GPL-3.0-only
+# Generated with a checksum-verified ARMv7 payload. No device code is downloaded at runtime.
+set -eu
+umask 077
+title='@TITLE@'
+id='@ID@'
+version='@VERSION@'
+binary='@BINARY@'
+host_sha='@HOST_SHA@'
+payload_sha='@PAYLOAD_SHA@'
+firmware='@FIRMWARE@'
+root=''
+service=acvs
+host="$root/usr/bin/MPC"
+dir="$root/data/mpc-addins/$id"
+so="$dir/$binary"
+drop="$root/etc/systemd/system/$service.service.d/90-mpc-addins.conf"
+runtime_drop="$root/run/systemd/system/$service.service.d/90-mpc-addins.conf"
+backups="$root/data/retrolooper-controls/backups/$id"
+lock="$root/data/retrolooper-controls/$id.lock"
+die(){ printf 'Error: %s\n' "$*" >&2; exit 1; }
+digest(){ sha256sum "$1" | awk '{print $1}'; }
+decode_payload(){
+    if command -v base64 >/dev/null 2>&1; then
+        base64 -d
+    elif command -v openssl >/dev/null 2>&1; then
+        openssl enc -base64 -d
+    else
+        die "no base64 decoder found"
+    fi
+}
+supported(){ [ "$(uname -m)" = armv7l ] && [ -r "$host" ] && [ "$(digest "$host")" = "$host_sha" ]; }
+# Reuse the shared drop-in format. Only plain/quoted LD_PRELOAD lists are understood.
+preload_of(){
+    [ -f "$1" ] || return 0
+    awk '/^[[:space:]]*Environment=/ && (i=index($0,"LD_PRELOAD=")) {
+       rest=substr($0,i+11); quoted=substr($0,i-1,1)=="\"";
+       e=index(rest, quoted ? "\"" : " "); if(e) rest=substr(rest,1,e-1);
+       gsub(/[: ]+/,":",rest); out=rest
+    } END {print out}' "$1"
+}
+has(){ case ":$1:" in *":$2:"*) return 0;; *) return 1;; esac; }
+configured(){ has "$(preload_of "$drop")" "$so"; }
+pid(){
+    # Ignore all ambiguous/multiple host processes.
+    set -- $(pidof MPC 2>/dev/null || :)
+    [ "$#" -eq 1 ] && printf '%s\n' "$1"
+}
+mapped(){
+    p=$(pid) || return 1
+    awk -v wanted="$so" '$NF==wanted {seen=1} END {exit !seen}' "$root/proc/$p/maps" 2>/dev/null
+}
+simple_list(){ case "$1" in *[!a-zA-Z0-9/_.:,+-]*) die "unrecognized preload syntax";; esac; }
+status(){
+    code=unsupported; ok=0; backup=0
+    [ ! -d "$backups" ] || backup=1
+    if supported; then
+        ok=1; code=stock
+        if configured; then
+            if [ ! -f "$so" ] || ! mapped; then code=partial
+            elif [ "$(digest "$so")" = "$payload_sha" ]; then code=patched
+            else code=old-patch
+            fi
+        elif [ -f "$so" ] || mapped; then code=partial
+        fi
+    fi
+    md5=unknown
+    [ ! -r "$host" ] || md5=$(md5sum "$host" | awk '{print $1}')
+    printf '%s %s — %s\nSTATE state=%s supported=%s backup=%s checksum=%s\n' "$title" "$version" "$firmware" "$code" "$ok" "$backup" "$md5"
+}
+confirm(){
+    [ "${confirmed:-0}" -eq 1 ] && return 0
+    printf '%s will restart the Akai app. Save your project first. Type %s: ' "$title" "$1"
+    IFS= read -r answer || die "confirmation canceled"
+    [ "$answer" = "$1" ] || die "confirmation canceled"
+}
+base_preload(){
+    # Query systemd's actual fragment/drop-in ordering; avoid guessing which
+    # vendor or community service file is in use. Do not edit any of those.
+    fragment=$(systemctl show "$service" -p FragmentPath --value)
+    [ -n "$fragment" ] && [ -f "$fragment" ] || die "cannot identify the running Akai service"
+    base=$(preload_of "$fragment")
+    parts=$(systemctl show "$service" -p DropInPaths --value)
+    for f in $parts; do
+        [ "$f" = "$drop" ] && continue
+        candidate=$(preload_of "$f")
+        [ -z "$candidate" ] || {
+            last=$(printf '%s\n%s\n' '90-mpc-addins.conf' "${f##*/}" | LC_ALL=C sort | tail -n 1)
+            [ "$last" = '90-mpc-addins.conf' ] || die "another drop-in overrides the shared preload file"
+            base=$candidate
+        }
+    done
+    has "$base" "$so" && die "Controls is registered in a different startup file; remove that old registration first"
+    simple_list "$base"
+    printf '%s\n' "$base"
+}
+read_addins(){
+    [ ! -e "$runtime_drop" ] || die "a runtime-only add-in configuration exists; resolve it first"
+    [ ! -L "$drop" ] || die "unexpected symlink for the shared add-in configuration"
+    [ -f "$drop" ] || return 0
+    grep -q '^# base: ' "$drop" && grep -q '^# lib: [12]$' "$drop" ||
+        die "shared add-in configuration format is unknown; no changes made"
+    oldbase=$(sed -n 's/^# base: //p' "$drop")
+    current=$(preload_of "$drop")
+    simple_list "$oldbase"; simple_list "$current"
+    remaining=""; oldifs=$IFS; IFS=:
+    for entry in $current; do
+        if [ -n "$entry" ] && [ "$entry" != "$so" ] && ! has "$oldbase" "$entry" && ! has "$remaining" "$entry"; then
+            remaining="$remaining${remaining:+:}$entry"
+        fi
+    done
+    IFS=$oldifs
+    printf '%s\n' "$remaining"
+}
+write_drop(){
+    desired=$1
+    if [ -z "$desired" ]; then
+        rm -f "$drop"
+    else
+        printf '[Service]\n# MPC addins; base and add-ins are kept separate for the OpenMPC installer.\n# lib: 2\n# base: %s\nEnvironment=LD_PRELOAD=%s\n' \
+            "$base" "$base${base:+:}$desired" > "$drop.retrolooper-new"
+        chmod 644 "$drop.retrolooper-new"
+        mv "$drop.retrolooper-new" "$drop"
+    fi
+}
+restart_and_verify(){
+    should_load=$1
+    old=$(pid || :)
+    systemctl daemon-reload && systemctl restart "$service" || return 1
+    i=0
+    while [ "$i" -lt 15 ]; do
+        if systemctl is-active --quiet "$service" && before=$(pid) && [ "$before" != "$old" ]; then
+            if { [ "$should_load" -eq 1 ] && mapped; } || { [ "$should_load" -eq 0 ] && ! mapped; }; then
+                sleep 2
+                [ "$(pid)" = "$before" ] && systemctl is-active --quiet "$service" || return 1
+                if [ "$should_load" -eq 1 ]; then mapped; else ! mapped; fi
+                return $?
+            fi
+        fi
+        sleep 1; i=$((i+1))
+    done
+    return 1
+}
+restore_one(){
+    previous=$1; dest=$2
+    if [ -f "$previous" ]; then
+        cp -p "$previous" "$dest.retrolooper-restore" && mv "$dest.retrolooper-restore" "$dest"
+    else rm -f "$dest"
+    fi
+}
+cleanup(){
+    rc=$?
+    trap - EXIT HUP INT TERM
+    set +e
+    if [ "${changed:-0}" -eq 1 ]; then
+        printf 'Controls change failed. Restoring the previous files from %s.\n' "$backup" >&2
+        restore_one "$backup/controls.so" "$so" && restore_one "$backup/preload.conf" "$drop" &&
+            systemctl daemon-reload && systemctl restart "$service" ||
+            printf 'Automatic restore failed; backup retained at %s\n' "$backup" >&2
+    fi
+    [ "${touched:-0}" -eq 0 ] || rm -f "$so.retrolooper-new" "$drop.retrolooper-new"
+    [ -z "${tmp:-}" ] || rm -f "$tmp"
+    rmdir "$lock" 2>/dev/null || :
+    exit "$rc"
+}
+change(){
+    mode=$1
+    [ "$(id -u)" = 0 ] || die "run as root"
+    if [ "$mode" = install ]; then
+        supported || die "unsupported host image; this patch is for $firmware only"
+        confirm PATCH
+    else
+        if ! configured && [ ! -f "$so" ] && ! mapped; then echo 'Controls already removed.'; return 0; fi
+        # Removal does not require the original firmware: it removes this known path only.
+        confirm RESTORE
+    fi
+    [ ! -L "$dir" ] && [ ! -L "$so" ] || die "unexpected symlink in the Controls install path"
+    mkdir -p "$(dirname "$lock")"
+    mkdir "$lock" 2>/dev/null || die "another Controls operation is in progress"
+    trap cleanup EXIT
+    trap 'exit 130' HUP INT TERM
+    base=$(base_preload)
+    addins=$(read_addins)
+    [ "$mode" = uninstall ] || {
+        tmp=$(mktemp "${TMPDIR:-/tmp}/retrolooper-controls.XXXXXXXX")
+        payload | decode_payload > "$tmp"
+        [ "$(digest "$tmp")" = "$payload_sha" ] || die "Controls payload failed its checksum"
+        supported || die "host image changed before installation"
+    }
+    mkdir -p "$backups"
+    backup=$(mktemp -d "$backups/change.XXXXXXXX")
+    [ ! -f "$drop" ] || cp -p "$drop" "$backup/preload.conf"
+    [ ! -f "$so" ] || cp -p "$so" "$backup/controls.so"
+    printf 'Backup: %s\n' "$backup"
+    [ ! -e "$so.retrolooper-new" ] && [ ! -L "$so.retrolooper-new" ] &&
+        [ ! -e "$drop.retrolooper-new" ] && [ ! -L "$drop.retrolooper-new" ] || die "unexpected staging file already exists"
+    touched=1
+    if [ "$mode" = install ]; then
+        mkdir -p "$dir" "$(dirname "$drop")"
+        changed=1
+        cp "$tmp" "$so.retrolooper-new"
+        chmod 755 "$so.retrolooper-new"
+        mv "$so.retrolooper-new" "$so"
+        write_drop "$addins${addins:+:}$so"
+        configured && restart_and_verify 1 || die "the Akai app did not load the expected Controls"
+    else
+        changed=1
+        if configured; then write_drop "$addins"; fi
+        ! configured && restart_and_verify 0 || die "Controls are still loaded"
+        rm -f "$so"
+    fi
+    changed=0
+    printf 'Done: %s (%s).\n' "$title" "$mode"
+    status
+}
+# The generated function below contains only the base64 of the checked .so.
+@PAYLOAD_FUNCTION@
+confirmed=0
+case "${2:-}" in '') ;; --confirmed|--yes-i-understand) confirmed=1;; *) die "unknown option";; esac
+[ "$#" -le 2 ] || die "too many arguments"
+case "${1:-status}" in status) status;; install|uninstall) change "$1";; *) die "use status, install, or uninstall";; esac

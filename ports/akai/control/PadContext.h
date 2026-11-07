@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include <stdint.h>
 /* MPC 3.10.0.49 EngineMode IDs, verified against the firmware's own

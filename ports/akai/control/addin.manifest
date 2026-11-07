@@ -1,6 +1,6 @@
 ADDIN_ID=retrolooper-buttons
-ADDIN_NAME='RetroLooper MPC Buttons'
+ADDIN_NAME='Retrolooper One MPC Controls'
 ADDIN_SO=retrolooper_buttons.so
 ADDIN_CONF=''
-ADDIN_FILES='README.txt ButtonBridge.c ButtonProtocol.h TrackBridge.h TrackProtocol.h EditorTrack.h PadBridge.h PadProtocol.h PadContext.h native-ui-LICENSE exports.map check_exports.py mpc-vst-plugins-LICENSE'
+ADDIN_FILES='README.txt ButtonBridge.c ButtonProtocol.h TrackBridge.h TrackProtocol.h EditorTrack.h PadBridge.h PadProtocol.h PadContext.h TimelineProtocol.h TimelineBounce.h NativeTimelineCall.cpp native-ui-LICENSE exports.map check_exports.py mpc-vst-plugins-LICENSE'
 ADDIN_DONE='Opening RetroLooper selects its owning Audio track and matching pad grid. Bank A still yields to native MPC modes; input follows the selected Audio track.'

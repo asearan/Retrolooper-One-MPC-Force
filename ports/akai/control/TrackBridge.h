@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 /* MPC One+ 3.10.0.49 native selection/arm bridge.
    The queue ABI and enqueue checks are adapted from Twisted Cable's MIT
    plugin-manager-usb-for-open-mpc/src/startup/native_ui.cpp.
@@ -33,7 +31,15 @@ _Static_assert(sizeof(RloUiCallback)==152,"Pinned ARM32 native queue ABI");
 static uintptr_t native_base,native_project,native_queues,native_engine_mode;
 static int native_mem=-1;
 static uint32_t native_supported,native_enabled,ui_pending,request_gen,done_gen,want_fx,monitor_tracks,last_monitor_track,last_monitor_program;
-typedef struct {uint32_t project,track,arm,count,stamp,monitor,fx[MAX_TRACK_FX],editor_fx,editor_open;} RloTrackSnapshot;
+#ifdef RLO_MPC_TIMELINE
+#include "TimelineProtocol.h"
+#endif
+typedef struct {
+ uint32_t project,track,arm,count,stamp,monitor,fx[MAX_TRACK_FX],editor_fx,editor_open;
+#ifdef RLO_MPC_TIMELINE
+ RloMpcTimelineTarget timeline;
+#endif
+} RloTrackSnapshot;
 static RloTrackSnapshot snapshots[2];
 static uint32_t snapshot_active,snapshot_readers[2];
 static int snapshot_read(RloTrackSnapshot *out){
@@ -153,15 +159,13 @@ static int route_native_monitors(uint32_t selected,int force_input){
   uint32_t program=0,arm=0,fx[MAX_TRACK_FX];unsigned count=0;
   if(!track_effects(tracks[i],&program,&arm,fx,&count))return 0;
   if(!count)continue;
-  /* MPC also saves MERGE (3). It is a valid starting/manual mode, not a
-     corrupt property. Selection/capture preparation still chooses IN. */
   if(native_word(program+0x26f0)>MONITOR_MERGE||native_word(program+0x26e4)!=1)return 0;
   for(unsigned j=0;j<routes_count;++j)if(routes[j].program==program)return 0;
   routes[routes_count].track=tracks[i];routes[routes_count].program=program;
   uint32_t desired=MONITOR_OFF;
   if(tracks[i]==selected){
    selected_program=program;
-   desired=force_input||selected!=last_monitor_track||program!=last_monitor_program?MONITOR_IN:native_word(program+0x26f0);
+   desired=force_input||selected!=last_monitor_track||program!=last_monitor_program?MONITOR_MERGE:native_word(program+0x26f0);
   }
   routes[routes_count++].desired=desired;
  }
@@ -169,7 +173,7 @@ static int route_native_monitors(uint32_t selected,int force_input){
  /* Close old live-input paths before opening the selected one. Existing
     timeline clips and insert-loop outputs continue through MPC normally. */
  for(unsigned pass=0;pass<2;++pass)for(unsigned i=0;i<routes_count;++i){
-  if((routes[i].desired==MONITOR_IN)!=(pass==1))continue;
+  if((routes[i].desired!=MONITOR_OFF)!=(pass==1))continue;
   if(native_word(native_project+0xa0)!=selected||!monitor_set(routes[i].program,routes[i].desired))return 0;
  }
  if(native_word(native_project+0xa0)!=selected)return 0;
@@ -191,6 +195,9 @@ static void native_disarm(uint32_t track){
 #endif
 }
 #include "EditorTrack.h"
+#ifdef RLO_MPC_TIMELINE
+#include "TimelineBounce.h"
+#endif
 static void ui_refresh(void){
  if(!__atomic_load_n(&native_enabled,__ATOMIC_ACQUIRE)){__atomic_store_n(&ui_pending,0,__ATOMIC_RELEASE);return;}
  if(syscall(SYS_gettid)!=getpid()){__atomic_store_n(&ui_pending,0,__ATOMIC_RELEASE);return;}
@@ -211,8 +218,15 @@ static void ui_refresh(void){
  if(!__atomic_load_n(&snapshot_readers[slot],__ATOMIC_ACQUIRE)){
   RloTrackSnapshot *next=&snapshots[slot];
   next->project=valid?(uint32_t)native_project:0;next->track=valid?track:0;next->arm=arm;next->count=valid?count:0;next->stamp=now_ms();next->monitor=(uint32_t)monitor;
+#ifdef RLO_MPC_TIMELINE
+  next->timeline=(RloMpcTimelineTarget){0};
+  if(valid&&count)timeline_destination(track,&next->timeline);
+#endif
   next->editor_fx=visible_editor_fx;next->editor_open=visible_editor_open;memcpy(next->fx,fx,sizeof fx);__atomic_store_n(&snapshot_active,slot,__ATOMIC_RELEASE);published=1;
  }
+#ifdef RLO_MPC_TIMELINE
+ timeline_refresh(track,fx,valid?count:0);
+#endif
  if(requested&&published)__atomic_store_n(&done_gen,request,__ATOMIC_RELEASE);
  static uint32_t previous_track,previous_arm=2,previous_request,previous_count,previous_routes,previous_editor,previous_editor_open,previous_selections;
  static int previous_valid=-1,previous_monitor=-2;
@@ -268,11 +282,17 @@ static void track_init(void){
  char exe[256];ssize_t n=readlink("/proc/self/exe",exe,sizeof exe-1);if(n<1)return;exe[n]=0;
  char *name=strrchr(exe,'/');if(!name||strcmp(name+1,"MPC"))return;
  dl_iterate_phdr(main_image,0);native_mem=open("/proc/self/mem",O_RDONLY|O_CLOEXEC);
- if(native_mem<0||!native_fingerprint())return;
- __atomic_store_n(&native_supported,1,__ATOMIC_RELEASE);
- pthread_t thread;if(pthread_create(&thread,0,track_worker,0)==0)pthread_detach(thread);
+ if(native_mem<0)return;
+ if(!native_fingerprint()){close(native_mem);native_mem=-1;return;}
+ pthread_t thread;
+ if(pthread_create(&thread,0,track_worker,0)==0){pthread_detach(thread);__atomic_store_n(&native_supported,1,__ATOMIC_RELEASE);}
+ else {close(native_mem);native_mem=-1;}
 }
-static void rlo_track_start(void){__atomic_store_n(&native_enabled,1,__ATOMIC_RELEASE);pthread_once(&track_once,track_init);}
+static int rlo_track_start(void){
+ pthread_once(&track_once,track_init);
+ if(!__atomic_load_n(&native_supported,__ATOMIC_ACQUIRE))return 0;
+ __atomic_store_n(&native_enabled,1,__ATOMIC_RELEASE);return 1;
+}
 static void rlo_track_pause(void){__atomic_store_n(&native_enabled,0,__ATOMIC_RELEASE);}
 __attribute__((visibility("default"))) uint32_t retrolooper_mpc_track_status(void *effect){
  uint32_t status=__atomic_load_n(&native_supported,__ATOMIC_ACQUIRE)?RLO_TRACK_SUPPORTED:0;
@@ -285,7 +305,7 @@ __attribute__((visibility("default"))) uint32_t retrolooper_mpc_track_status(voi
     UI publishes a normal refresh of the same selection. */
  if(owns&&view.track==__atomic_load_n((uint32_t*)(uintptr_t)(view.project+0xa0),__ATOMIC_ACQUIRE)){
   status|=RLO_TRACK_SELECTED;if(!view.arm)status|=RLO_TRACK_DISARMED;
-  if(view.monitor==MONITOR_IN)status|=RLO_TRACK_INPUT_READY;
+  if(view.monitor==MONITOR_MERGE||view.monitor==MONITOR_IN)status|=RLO_TRACK_INPUT_READY;
  }
  return status;
 }
@@ -309,7 +329,7 @@ static void rlo_track_prepare_physical(void){
 
 
 #else
-static void rlo_track_start(void){}
+static int rlo_track_start(void){return 0;}
 static void rlo_track_pause(void){}
 static void rlo_track_prepare_physical(void){}
 __attribute__((visibility("default"))) uint32_t retrolooper_mpc_track_status(void *effect){(void)effect;return 0;}

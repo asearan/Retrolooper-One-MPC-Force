@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #define _GNU_SOURCE
 #include "ButtonProtocol.h"
 #include <dlfcn.h>
@@ -43,7 +41,10 @@ __attribute__((visibility("default"))) uint32_t retrolooper_mpc_button_ready(voi
 __attribute__((visibility("default"))) int snd_rawmidi_open(snd_rawmidi_t**in,snd_rawmidi_t**out,const char*name,int mode){
     pthread_once(&init_once,init_symbols);if(!next_open)return -38;
     int rc=next_open(in,out,name,mode);
-    if(rc>=0&&in&&*in&&controller_port(*in,1)){memset(&parser,0,sizeof parser);__atomic_store_n(&private_input,*in,__ATOMIC_RELEASE);__atomic_store_n(&ready,1,__ATOMIC_RELEASE);pad_default_bank();rlo_track_start();}
+    if(rc>=0&&in&&*in&&controller_port(*in,1)&&rlo_track_start()){
+        memset(&parser,0,sizeof parser);__atomic_store_n(&private_input,*in,__ATOMIC_RELEASE);
+        __atomic_store_n(&ready,1,__ATOMIC_RELEASE);pad_default_bank();
+    }
     if(rc>=0&&out&&*out&&controller_port(*out,0))pad_open_output(*out);
     if(rc>=0)pad_maybe_start();
     return rc;

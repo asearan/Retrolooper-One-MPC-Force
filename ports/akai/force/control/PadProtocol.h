@@ -1,18 +1,16 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 /* Independent Force implementation using controller protocol facts: pads
    are channel 10 notes 0x36..0x75, row-major from the upper-left corner. */
-typedef struct {uint8_t status,data[2],used,needed,sysex,shift,bank,known,seen_note,last_note,last_pad,down[128];} RloPadParser;
+typedef struct {uint8_t status,data[2],used,needed,sysex,shift,bank,known,seen_note,last_note,last_pad,down[128],picked[64];} RloPadParser;
 typedef int (*RloPadSink)(void*,unsigned,int);
 static inline int rlo_force_slot(unsigned physical){
  return physical>=56&&physical<64?(int)(physical-56):physical>=48&&physical<56?(int)(physical-48+8):-1;
 }
 static inline int rlo_pad_number(unsigned note){return note>=0x36&&note<=0x75?rlo_force_slot(note-0x36):-1;}
-static inline void rlo_pad_input(RloPadParser *p,unsigned char *bytes,size_t size,RloPadSink sink,void *context){
+static inline void rlo_pad_input(RloPadParser *p,unsigned char *bytes,size_t size,RloPadSink sink,void *context,RloPadSink picker){
  p->known=1;p->bank=0;
  for(size_t i=0;i<size;++i){unsigned b=bytes[i];if(b>=0xf8)continue;
   if(b==0xf0){p->sysex=1;p->status=p->used=0;continue;}if(b==0xf7){p->sysex=0;p->status=p->used=0;continue;}if(p->sysex)continue;
@@ -22,6 +20,15 @@ static inline void rlo_pad_input(RloPadParser *p,unsigned char *bytes,size_t siz
   unsigned note=p->data[0],value=p->data[1];int slot=rlo_pad_number(note),attack=p->status==0x99&&value>0,press=attack&&!p->down[note];
   p->seen_note=1;p->last_note=(uint8_t)note;p->last_pad=slot<0?255:(uint8_t)slot;
   if(p->status!=0xa9)p->down[note]=(uint8_t)attack;
+  if(note>=0x36&&note<=0x75){
+   unsigned pad=note-0x36;
+   if(press&&picker&&picker(context,pad,1))p->picked[pad]=1;
+   if(p->picked[pad]){
+    if(p->status==0xa9||attack)bytes[i]=0;
+    else p->picked[pad]=0;
+    continue;
+   }
+  }
   if(slot>=0&&sink&&sink(context,(unsigned)slot,press)&&(p->status==0x99||p->status==0xa9))bytes[i]=0;
  }
 }

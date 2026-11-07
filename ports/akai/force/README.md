@@ -1,18 +1,18 @@
-# RetroLooper One 0.1.0 — hardware test build
+# Retrolooper One — Force build
 
-A dedicated Akai Force port of RetroLooper One, with its own VST ID (`RlF1`), binary, native helper and installer packages. The MPC One+ build is unchanged.
+A dedicated Akai Force build of Retrolooper One, with its own VST ID (`RlF1`). Starting with the 0.2.6 test build, the effect runs without a native helper. Optional Force Controls is a separate Device patch.
 
 The stereo looper retains sequence-sized allocation, a 120-second maximum, four undo levels, threshold recording, Reverse, HP/LP filters, MIDI assignments, Wave/Tape/Meter views, project recall and the same graphic style. Touchscreen buttons and physical pads control capture. Force supplies the clock and global transport.
 
-Automatic loop length and default phase use the **global Arrange loop**, with ÷2, ×1 and ×2 available. The port consumes the host's VST2 cycle start/end positions; the live Force test must confirm those match Arrange, including changes to its loop range. It does not use the selected Matrix clip as its intended length source. “Next bar” is an optional launch mode.
+Automatic loop length and default phase use Force's VST2 cycle start/end positions, with ÷2, ×1 and ×2 available. Global Arrange is the intended timing source. The range discrepancy reported on hardware is still under investigation. “Next bar” is an optional launch mode.
 
 ## Force controls
 
-The matching **RetroLooper One Controls (Force) 0.1.0** helper provides native track ownership, editor-driven track selection, selected-track input preparation and pad colours. It is a background helper; only RetroLooper One appears as an insert effect. Do not install the MPC Buttons helper on Force.
+The optional [Force Controls patch](../device-patches/retrolooper-controls-force.md) provides native track ownership, selected-track input preparation, pad colours and Bounce to Clip on the exact verified Force 3.10 host image. Opening a looper selects its Audio track. With the looper open, pressing Track Select retargets the editor and pad grid to that track's looper. The patch runs in the background; Retrolooper One is the only insert effect.
 
-The looper grid uses the **bottom two rows** only while its editor is visible: P1–P8 on the bottom row, P9–P16 on the row above, each left to right. Assign mode uses vertical-drag knobs; Play mode uses buttons. The upper 48 pads pass through unchanged. Closing the editor or entering a native mute/performance mode gives the entire grid back to Force. A live pad/LED test is still required.
+The looper grid uses the **bottom two rows** while its editor is visible. P1–P8 are on the bottom row and P9–P16 are on the row above, each left to right. Play and Assign use the same square touch areas. Tap a button in Play or drag a knob vertically in Assign. Both modes were verified on the Force touchscreen. Closing the editor or entering a native mute or performance mode gives the grid back to Force.
 
-Capture preparation uses the selected owning Audio track, switches native REC ARM off to avoid duplicate timeline recording and prepares Monitor IN. Other tracks containing RetroLooper One use Monitor OFF and keep their recorded loops playing. Put effects **before** RetroLooper to record their sound into each layer. An insert receives the signal at its position in the chain; it cannot capture later insert effects.
+With Controls, capture preparation uses the selected owning Audio track, switches native REC ARM off to avoid duplicate timeline recording and prepares Monitor MERGE. Other tracks containing Retrolooper One use Monitor OFF and keep their recorded loops playing. Without Controls, set Monitor MERGE and REC ARM OFF yourself, and use the looper's touchscreen or assigned MIDI controls. Put effects **before** Retrolooper to record their sound into each layer.
 
 ## Validation and supported firmware
 
@@ -21,19 +21,21 @@ The Force device provided for this port runs 3.10. Its exact host image is pinne
 Passed:
 
 - Sanitized Mac DSP/host tests for audio, timing, multipliers, threshold start, reverse, persistence, memory and multiple instances.
-- Force image hash, build ID and all 18 helper code/type guards.
+- Force image hash, build ID and all 36 helper code/type guards.
 - Read-only live application, Project, TrackPool and AudioProgram graph checks on Force.
 - Isolated ARM tests executed on Force, using fixture memory and fake ALSA for ownership, monitor/arm preparation, MIDI passthrough, pad identity, native mode handoff and RGB restoration.
 - Production `.so` audio tests on Force: exact /2, x1 and x2 frame counts, clean synthetic playback, four-instance capture isolation, overdub handoff, threshold sample alignment, exact stereo Reverse, local transport and loop-present feedback.
 - Native skin/schema, layout and resource audits.
 
-**Installed on the provided Force; startup verified.** Both installed binary hashes match the tested build, the native UI worker is ready and the existing cursor helper is preserved. The native RGB stream has been learned. Live Arrange timing, audio recording/playback, track switching, touch gestures and physical pad actions remain to be tested. This remains a hardware test release. Save the Force project before future application restarts.
+**Version 0.2.10 is a hardware test build.** **Timing → Record Offset** defaults to **Auto (7 ms)** for new recordings and overdubs through the built-in analog inputs. The manual control covers 0–50 ms for other signal paths. Save the Force project before installing and restarting the application. Existing Force testers with a legacy `RetroLooper - VST - RetroLooper Force` installation should back up their `Loops` and `Exports` before moving to the new folder.
 
-WAV export writes to the plugin's `Exports` folder. Automatic placement on the native Audio timeline remains unimplemented on both targets; this test build does not claim to bounce onto the timeline.
+With Force Controls 0.2.10, finish recording or overdubbing and tap **CLIP** on Looper or **Choose Clip** on Mixer. CLIP blinks while waiting. Press the destination pad to select that Matrix slot and bounce while the looper stays open. You can also open Matrix and choose a destination on the touchscreen. The bounce can run during playback. It renders the stored loop with its filters, level and pan. If the destination changes during rendering, the WAV stays in the plugin's Exports folder.
+
+**WAV** still exports a numbered WAV to `Exports` without changing any clip. Bounce uses separately named WAV files and does not consume a numbered slot. Native clip replacement, playback and Undo require an on-device check before this test build is promoted.
 
 ## Distribution and build
 
-Share the two ZIP packages together from `MAC BUILD/DISTRIBUTION/Akai Force/`, following that folder's installation notes. They use the standard community catalog/plugin and addin formats. Keep them separate from `MAC BUILD/DISTRIBUTION/MPC One+/`.
+The effect ZIP is in `MAC BUILD/DISTRIBUTION/Akai Force/Portable Test 0.2.10/`, with the separate patch in **Optional Controls**. The MPC One+ build has its own distribution folder.
 
 ```sh
 python3 build_force.py test --sanitize

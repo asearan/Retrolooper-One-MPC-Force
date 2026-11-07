@@ -1,5 +1,3 @@
-# Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-# SPDX-License-Identifier: GPL-3.0-only
 """Parameter-driven native artwork using the supplied Akai sprite sheet.
 Static textured cassette + small animated hub strips keep the texture budget low.
 The waveform, meters, hold and clip retain their existing engine parameters.
@@ -126,7 +124,7 @@ def make(skin,S):
         else:
             panel(d,(48,0,1032,296))
             d.rounded_rectangle((64,16,1016,52),radius=4,fill='#e9dfc0')
-            d.text((84,34),'RETROLOOPER / '+('WAVEFORM' if mode==0 else 'LEVEL METER'),font=font(24),fill='#19222a',anchor='lm')
+            d.text((84,34),'RETROLOOPER ONE / '+('WAVEFORM' if mode==0 else 'LEVEL METER'),font=font(24),fill='#19222a',anchor='lm')
             for j,c in enumerate(('#ff454e','#ff943a','#ffcf45','#38b7ce','#1876a6')):d.rectangle((784,19+j*6,998,24+j*6),fill=c)
             if mode==0:scope_background(bg,(72,68,936,168))
             else:

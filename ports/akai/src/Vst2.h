@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 // VST2 ABI declarations derived from sd88me/mpc-vst-plugins (MIT).
 // See vendor/mpc-vst-plugins-LICENSE. No Steinberg SDK is required.

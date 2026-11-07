@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-# SPDX-License-Identifier: GPL-3.0-only
 """Build an ARM Linux effect and/or run the native ABI/DSP regression host.
 Python 3.9+, Pillow for skins. ARM build: Zig 0.13.0. No JUCE/Steinberg SDK.
 """
@@ -24,7 +22,7 @@ def run(args, **kw):
     print("+", " ".join(map(str,args)), flush=True)
     subprocess.run(list(map(str,args)),check=True,**kw)
 
-def snapshot():
+def snapshot(force_record_offset=False):
     """The parent sources stay untouched. These narrowly scoped adaptations are checked, not guessed."""
     target=BUILD/"engine"
     shutil.copytree(REPO/"engine", target, dirs_exist_ok=True)
@@ -43,8 +41,12 @@ def snapshot():
             "        if (i == 0) tracks_[0].reserveRecordHeadroom(headroom); // Legacy standalone preparation only.")
     replace("LooperEngine.h", "    void prepareLiveRecordHeadroom() noexcept;", "    void prepareLiveRecordHeadroom() noexcept;\n    // Port only: caller excludes callbacks; allocation stays off the audio thread.\n    void reserveCaptureStorage(std::size_t frames) { tracks_[0].reserveRecordHeadroom(frames); tracks_[0].ensureRealtimeCapacity(frames); }\n    std::size_t captureStorageSize() const noexcept { return tracks_[0].bufferCapacity(); }\n    std::size_t captureStorageCapacity() const noexcept { return tracks_[0].captureStorageCapacity(); }\n#include \"HostLoopStorage.inc\"")
     replace("_segment_gen.cpp", "track.writeSample(channel, whead, inputSample);", "track.writeSample(channel, hostCaptureWriteIndex(ti,whead), inputSample);")
+    if force_record_offset:
+        replace("_segment_gen.cpp", "double ph = static_cast<double>(ts - phaseOrigin) * stretchRatio;", "double ph = static_cast<double>(ts - phaseOrigin - effectiveRecordLatencyCompensationSamples(trackIndex)) * stretchRatio;")
     replace("LooperEngine.cpp", "    const bool forcePlaying = finishRecordingToPlaying_[ti];", "    if(trackIndex==0&&hostThresholdFrames_)track.setRecordedSamples(hostThresholdFrames_);\n    const bool forcePlaying = finishRecordingToPlaying_[ti];")
     replace("LooperEngine.cpp", "    const std::int64_t recordGate = trackRecordInputGateTransport_[ti];", "    const std::int64_t recordGate = trackIndex==0&&hostThresholdFrames_?hostThresholdOrigin_:trackRecordInputGateTransport_[ti];")
+    if force_record_offset:
+        replace("LooperEngine.cpp", "        const int comp = effectiveRecordLatencyCompensationSamples(trackIndex);", "        const int comp = trackIndex==0&&hostThresholdFrames_?0:effectiveRecordLatencyCompensationSamples(trackIndex);")
     replace("LooperEngine.cpp", "    refreshIsRecordingFlag();\n    if (waveformEnvelopes_ != nullptr)\n    {\n        waveformEnvelopes_->rebuildFromTrack(trackIndex, track);", "    hostCompleteThresholdCapture(trackIndex,transportBoundaryExclusive>=0?transportBoundaryExclusive:transport_.samplePosition());\n    refreshIsRecordingFlag();\n    if (waveformEnvelopes_ != nullptr)\n    {\n        waveformEnvelopes_->rebuildFromTrack(trackIndex, track);")
     replace("LooperEngine.cpp", "    // Realtime-safe: keep reserved capacity. clearAudio() takes a mutex and can hitch the first hit.", "    if(trackIndex==0)hostThresholdFrames_=hostThresholdOffset_=0;\n    // Realtime-safe: keep reserved capacity. clearAudio() takes a mutex and can hitch the first hit.")
     replace("Track.h", "    void reserveRecordHeadroom(std::size_t samples) noexcept;", "    void reserveRecordHeadroom(std::size_t samples);")
@@ -71,12 +73,25 @@ def compile_flags():
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument("action",choices=["test","arm","skin","package","preview","all"])
+    p.add_argument("action",choices=["test","arm","controls","skin","package","preview","all"])
     p.add_argument("--zig",default=os.environ.get("ZIG","zig"))
     p.add_argument("--kit",default=os.environ.get("MPC_VST_KIT",""))
     p.add_argument("--sanitize",action="store_true")
     a=p.parse_args()
     BUILD.mkdir(exist_ok=True)
+    env={**os.environ,"ZIG_GLOBAL_CACHE_DIR":str(BUILD/"zig-cache"),"ZIG_LOCAL_CACHE_DIR":str(BUILD/"zig-local")}
+    if a.action in ("arm","controls","all"):
+        # Firmware-specific code belongs only in the separately shipped Device patch.
+        control=ROOT/"control"
+        target=["-target","arm-linux-gnueabihf.2.28","-mcpu=cortex_a17","-O2","-fPIC","-fvisibility=hidden"]
+        bridge=BUILD/"mpc-controls-buttons.o"
+        run([a.zig,"cc","-std=c11",*target,"-DRLO_MPC_TIMELINE","-c",control/"ButtonBridge.c","-o",bridge],env=env)
+        run([a.zig,"c++","-std=c++17",*target,"-shared",control/"NativeTimelineCall.cpp",bridge,
+             "-pthread","-ldl","-s","-Wl,--no-undefined","-Wl,--version-script="+str(control/"exports.map"),
+             "-o",control/"retrolooper_buttons.so"],env=env)
+        run([sys.executable,control/"check_exports.py"])
+    if a.action=="controls":
+        return
     run([sys.executable,ROOT/"tools/parameters.py"])
     snapshot()
     sources=[BUILD/"engine"/s for s in ENGINE_SOURCES]+[ROOT/"src/Plugin.cpp"]
@@ -85,12 +100,9 @@ def main():
         run(["clang++",*flags,*sources,ROOT/"tests/HostTests.cpp","-Wl,-export_dynamic","-o",BUILD/"host-tests"])
         run([BUILD/"host-tests"],env={**os.environ,"RETROLOOPER_TEST_LOOPS":str(BUILD/"test-loops")})
     if a.action in ("arm","all"):
-        env={**os.environ,"ZIG_GLOBAL_CACHE_DIR":str(BUILD/"zig-cache"),"ZIG_LOCAL_CACHE_DIR":str(BUILD/"zig-local")}
         run([a.zig,"c++","-target","arm-linux-gnueabihf.2.28","-mcpu=cortex_a17",*compile_flags(),"-shared",
-             *sources,"-Wl,--no-undefined","-Wl,--version-script="+str(ROOT/"src/exports.map"),"-ldl","-o",BUILD/"retrolooper_one.so"],env=env)
+             *sources,"-s","-Wl,--no-undefined","-Wl,--version-script="+str(ROOT/"src/exports.map"),"-ldl","-o",BUILD/"retrolooper_one.so"],env=env)
         run(["file",BUILD/"retrolooper_one.so"])
-        run([a.zig,"cc","-std=c11","-target","arm-linux-gnueabihf.2.28","-mcpu=cortex_a17","-O2","-shared","-fPIC","-fvisibility=hidden",
-             ROOT/"control/ButtonBridge.c","-pthread","-ldl","-Wl,--version-script="+str(ROOT/"control/exports.map"),"-o",ROOT/"control/retrolooper_buttons.so"],env=env)
     if a.action in ("preview","all"):
         run(["clang++",*compile_flags(),"-dynamiclib",*sources,ROOT/"src/TestBridge.cpp","-o",BUILD/"preview-engine.dylib"])
     if a.action in ("skin","package","all"):
@@ -100,23 +112,26 @@ def main():
         if actual!=KIT_COMMIT: raise SystemExit("Porting tools changed; use pinned commit "+KIT_COMMIT)
         run(["cc","-O2","-I"+str(kit/"tools/vendor/force-shadow/tools"),kit/"tools/shadow_art.c","-lm","-o",BUILD/"shadow_art"])
         run([sys.executable,kit/"tools/gen_vst.py",ROOT/"vst.json"],cwd=ROOT,env={**os.environ,"SHADOW_SKIN_MPC_OS":"2"})
+        cfg=json.loads((ROOT/"vst.json").read_text())
+        generated=BUILD/"skin"/(cfg["vendor"]+" - VST - "+cfg["name"])
+        compatible=BUILD/"skin"/(cfg["vendor"]+" - VST - "+cfg["folder_name"])
+        if generated!=compatible:generated.rename(compatible)
         run([sys.executable,ROOT/"tools/skin_finish.py","--kit",kit])
-        skin=BUILD/"skin/RetroLooper - VST - RetroLooper One"
+        skin=compatible
         run([sys.executable,kit/"tools/skin_check.py",skin])
         run([sys.executable,ROOT/"tools/check_native_skin.py","--kit",kit])
     if a.action in ("package","all"):
         if not (BUILD/"retrolooper_one.so").is_file():raise SystemExit("Build ARM first")
         run([sys.executable,kit/"tools/release.py","--so",BUILD/"retrolooper_one.so","--skin",skin,
-             "--entry",BUILD/"pluginlist-entry.xml","--version","0.3.6","--about","Touch-pad trigger buttons and explicit looper capture, cue/active lights, loop-present purple feedback and MPC One+ pad RGB routing.",
-             "--user-data","Loops","--extra",ROOT/"vendor/mpc-vst-plugins-LICENSE:licenses/mpc-vst-plugins-LICENSE",
+             "--entry",BUILD/"pluginlist-entry.xml","--version","0.3.9","--id","retrolooper-one","--about","Stereo Audio insert looper with host sync, touch controls and MIDI. Native pad and track integration is optional.",
+             "--user-data","Loops","--user-data","Exports","--extra",ROOT/"vendor/mpc-vst-plugins-LICENSE:licenses/mpc-vst-plugins-LICENSE",
              "--extra",REPO/"third_party/signalsmith-stretch/LICENSE.txt:licenses/signalsmith-stretch-LICENSE.txt",
              "--extra",REPO/"third_party/signalsmith-linear/LICENSE.txt:licenses/signalsmith-linear-LICENSE.txt",
              "--extra",ROOT/"README.md:RETROLOOPER.md",
              "--extra",ROOT/"preview/layout-audit.json:validation/layout-audit.json",
              "--extra",ROOT/"preview/resource-audit.json:validation/resource-audit.json","-o",ROOT/"dist"])
-        run([sys.executable,ROOT/"control/check_exports.py"])
-        run([sys.executable,kit/"tools/release_addin.py","--dir",ROOT/"control","--version","0.2.7",
-             "--about","Opening RetroLooper selects its owning Audio track and matching pad grid; preserve native pad-mode handoff and selected-track input monitoring.","-o",ROOT/"dist"])
-        for z in (ROOT/"dist").glob("*.zip"):run([sys.executable,kit/"tools/catalog_check.py",z])
+        archive=ROOT/"dist/RetroLooper-One-0.3.9-mpc-armv7.zip"
+        (ROOT/"dist/Retrolooper-One-0.3.9-mpc-armv7.zip").replace(archive)
+        run([sys.executable,kit/"tools/catalog_check.py",archive])
 
 if __name__=="__main__":main()

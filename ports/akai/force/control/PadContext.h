@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include <stdint.h>
 /* Force's Matrix/Arrange remain fully native when the editor is closed.

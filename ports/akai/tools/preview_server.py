@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-# SPDX-License-Identifier: GPL-3.0-only
 """Loopback-only, offline native-engine testbench: python3 tools/preview_server.py"""
 import argparse
 import atexit
@@ -96,9 +94,9 @@ class Handler(BaseHTTPRequestHandler):
         elif route=="/font.ttf":path=ROOT/"art/PressStart2P-Regular.ttf"
         elif route=="/ui-font.ttf":path=ROOT/"art/InterVariable.ttf"
         elif route.startswith('/asset/') and Path(route).name in set(json.loads((ROOT/'preview/controls.json').read_text())['assets']):
-            path=ROOT/'build/skin/RetroLooper - VST - RetroLooper One/Plugin Skins'/Path(route).name
+            path=ROOT/'build/skin/RetroLooper - VST - Retrolooper One/Plugin Skins'/Path(route).name
         elif route.startswith('/visual/') and Path(route).name in {d['image'] for d in json.loads((ROOT/'preview/visuals.json').read_text())['drawables']}:
-            path=ROOT/'build/skin/RetroLooper - VST - RetroLooper One/Plugin Skins'/Path(route).name
+            path=ROOT/'build/skin/RetroLooper - VST - Retrolooper One/Plugin Skins'/Path(route).name
         else:return self.send(b"Not found","text/plain",404)
         if not path.is_file():return self.send(b"Not found","text/plain",404)
         return self.send(path.read_bytes(),"text/html; charset=utf-8" if path.suffix==".html" else "font/ttf" if path.suffix==".ttf" else "image/png")
@@ -156,5 +154,5 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=="__main__":
     parser=argparse.ArgumentParser();parser.add_argument("--port",type=int,default=8765);a=parser.parse_args()
     server=HTTPServer(("127.0.0.1",a.port),Handler)
-    print(f"RetroLooper One native testbench: http://127.0.0.1:{a.port}",flush=True)
+    print(f"Retrolooper One native testbench: http://127.0.0.1:{a.port}",flush=True)
     server.serve_forever()

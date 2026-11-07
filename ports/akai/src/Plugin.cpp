@@ -1,7 +1,10 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #include "Vst2.h"
 #include "../control/TrackProtocol.h"
+#ifdef RETROLOOPER_FORCE_BOUNCE
+#include "../control/ClipProtocol.h"
+#else
+#include "../control/TimelineProtocol.h"
+#endif
 #include "Parameters.h"
 #include "PadBank.h"
 #include "CassetteTransport.h"
@@ -29,7 +32,7 @@
 
 namespace akai {
 using namespace retrolooper;
-constexpr int kVersion=306,kUid=0x526c4f31,kMaxBlock=512,kStateVersion=2,kLegacyParams=56;
+constexpr int kVersion=309,kUid=0x526c4f31,kMaxBlock=512,kStateVersion=2,kLegacyParams=56;
 static std::mutex exportGate;
 static std::mutex allocationGate;
 static std::atomic<uint32_t> nextPadToken{1};
@@ -40,10 +43,31 @@ constexpr std::array<CommandType,10> commands{CommandType::RecordToggle,CommandT
     CommandType::OverdubToggle,CommandType::MuteToggle,CommandType::UndoOverdub,CommandType::RedoOverdub,
     CommandType::Clear,CommandType::Stop,CommandType::Stop,CommandType::SyncAllToStart};
 struct Event {int offset=0;uint8_t type=0,data=0,value=0;};
-struct Job {int index=0,slot=1,targetBars=4;uint32_t generation=0;};
-enum Message {Ready,StopToEdit,Busy,Edited,Imported,Exported,FileError,SlotExists,Limit,QueueFull,InvalidState,Learned,NoLoop,UnsupportedRate,HostStopped,HostUnavailable,SequenceUnavailable,SequenceTooLong,SequenceArmed,PreparingAudio,MemoryLimit,MatchingLength,TrackNotSelected,TrackArmPending,TrackBridgeUnavailable,WaitingInput,FinishCapture};
+struct Job {
+    int index=0,slot=1,targetBars=4;uint32_t generation=0;
+#ifdef RETROLOOPER_FORCE_BOUNCE
+    RloForceClipTarget clipTarget{};
+#else
+    RloMpcTimelineTarget timelineTarget{};
+#endif
+};
+enum Message {Ready,StopToEdit,Busy,Edited,Imported,Exported,FileError,SlotExists,Limit,QueueFull,InvalidState,Learned,NoLoop,UnsupportedRate,HostStopped,HostUnavailable,SequenceUnavailable,SequenceTooLong,SequenceArmed,PreparingAudio,MemoryLimit,MatchingLength,TrackNotSelected,TrackArmPending,TrackBridgeUnavailable,WaitingInput,FinishCapture,ManualTakeArmed,
+#ifdef RETROLOOPER_FORCE_BOUNCE
+    ClipBounced,SelectClip,ClipChanged,ClipStopFirst,ClipFailed,ClipSetup,ClipBusy,ClipEndCapture,ClipPickSlot,ClipCanceled,
+#else
+    TimelineBounced,TimelineChanged,TimelineFailed,TimelineBusy,TimelineStop,TimelineOccupied,TimelineCapture,
+#endif
+};
 constexpr const char* messages[]{"READY TO RECORD","STOP BEFORE EDIT","WORKING...","EDIT COMPLETE","WAV IMPORTED","WAV EXPORTED",
-    "WAV FILE ERROR","SLOT EXISTS; PICK NEW","120 SECOND LIMIT","CONTROL QUEUE FULL","INVALID PROJECT STATE","MIDI LEARNED","NO LOOP AUDIO","USE 44.1 OR 48 KHZ","WAIT MPC PLAY","WAITING FOR MPC CLOCK","MPC LENGTH UNAVAILABLE","SEQUENCE EXCEEDS 120S","ARMED: MPC SEQ START","PREPARING AUDIO","NOT ENOUGH MEMORY","SYNCING LOOP LENGTH","SELECT THIS AUDIO TRACK","PREPARING MPC TRACK","WAIT MPC TRACK BRIDGE","WAIT INPUT THRESHOLD","END CAPTURE TO REVERSE"};
+    "WAV FILE ERROR","SLOT EXISTS; PICK NEW","120 SECOND LIMIT","CONTROL QUEUE FULL","INVALID PROJECT STATE","MIDI LEARNED","NO LOOP AUDIO","USE 44.1 OR 48 KHZ","WAIT MPC PLAY","WAITING FOR MPC CLOCK","MPC LENGTH UNAVAILABLE","SEQUENCE EXCEEDS 120S","ARMED: MPC SEQ START","PREPARING AUDIO","NOT ENOUGH MEMORY","SYNCING LOOP LENGTH","SELECT THIS AUDIO TRACK","PREPARING MPC TRACK","WAIT MPC TRACK BRIDGE","WAIT INPUT THRESHOLD","END CAPTURE TO REVERSE",
+    "ARMED: TAKE START",
+#ifdef RETROLOOPER_FORCE_BOUNCE
+    "BOUNCED TO CLIP","SELECT AUDIO CLIP SLOT","CLIP CHANGED; WAV SAVED","STOP FORCE TO BOUNCE","CLIP FAILED; WAV SAVED","FORCE CONTROLS NEEDED","CLIP BOUNCE BUSY","END CAPTURE TO BOUNCE","PICK PAD OR MATRIX","BOUNCE CANCELED",
+#else
+    "BOUNCED TO TRACK","TRACK MOVED | WAV SAVED","FAILED | WAV SAVED","BUSY | WAV SAVED","STOP MPC | WAV SAVED","OVERLAP | WAV SAVED","END CAPTURE TO BOUNCE",
+#endif
+};
+constexpr int lastMessage=sizeof(messages)/sizeof(messages[0])-1;
 
 static float norm(int i,float value) {return std::clamp((value-parameters[i].low)/(parameters[i].high-parameters[i].low),0.f,1.f);}
 static bool retired(int i){return i==tempo||i==monitor||i==host_sync||i==click||i==click_gain||i==crossfader||i==assign;}
@@ -72,8 +96,25 @@ struct Plugin {
     using PadTake=int(*)(void*,uint32_t,uint32_t*);
     using PadPublish=uint32_t(*)(void*,uint32_t,uint32_t,const uint8_t*);
     PadTake nativePadTake=nullptr;PadPublish nativePadPublish=nullptr;
+#ifdef RETROLOOPER_FORCE_BOUNCE
+    int(*nativeClipTarget)(void*,RloForceClipTarget*)=nullptr;
+    int(*nativeClipEnqueue)(void*,const RloForceClipTarget*,const char*,uint32_t*)=nullptr;
+    int(*nativeClipResult)(uint32_t,int)=nullptr;
+    int(*nativePickerBegin)(void*,uint32_t)=nullptr;
+    int(*nativePickerPoll)(void*,uint32_t,RloForceClipTarget*,int)=nullptr;
+    std::atomic<uint32_t> pickerProject{0},pickerTrack{0};
+    std::atomic<uint32_t> pickerGeneration{0};
+    std::atomic<bool> cancelNativePicker{false};
+#else
+    int(*nativeTimelineTarget)(void*,RloMpcTimelineTarget*)=nullptr;
+    int(*nativeTimelineEnqueue)(void*,const RloMpcTimelineTarget*,const char*,uint32_t*)=nullptr;
+    int(*nativeTimelineResult)(uint32_t,int)=nullptr;
+#endif
     uint32_t padToken=nextPadToken.fetch_add(1);std::atomic<uint32_t> padFlags{0};
-    bool requireTrackBridge=false,lastTrackAllowed=false;int pendingCaptureAction=-1;
+#ifdef RETROLOOPER_TESTING
+    bool testTrackGuard=false;
+#endif
+    bool lastTrackAllowed=false;int pendingCaptureAction=-1;
     int manualDub=-1; // -1 follows MPC; touch/MIDI overrides until its next transport/record edge.
     bool loopSuppressed=false,localDubPending=false;
 
@@ -146,6 +187,9 @@ struct Plugin {
         if(!std::getenv("RETROLOOPER_TEST_LOOPS")&&::access("/media/az01-internal",F_OK)==0)
             exportFolder="/media/az01-internal/RetroLooper Exports";
 #endif
+#ifdef RETROLOOPER_TESTING
+        if(!std::getenv("RETROLOOPER_TEST_NO_CONTROLS")){
+#endif
         physicalRec=reinterpret_cast<RecCounter>(dlsym(RTLD_DEFAULT,"retrolooper_mpc_rec_generation"));
         physicalReady=reinterpret_cast<RecCounter>(dlsym(RTLD_DEFAULT,"retrolooper_mpc_button_ready"));
         if(physicalRec)lastPhysicalRec=physicalRec();
@@ -153,16 +197,29 @@ struct Plugin {
         nativeTrackPrepare=reinterpret_cast<TrackPrepare>(dlsym(RTLD_DEFAULT,"retrolooper_mpc_track_prepare"));
         nativePadTake=reinterpret_cast<PadTake>(dlsym(RTLD_DEFAULT,"retrolooper_mpc_pad_take"));
         nativePadPublish=reinterpret_cast<PadPublish>(dlsym(RTLD_DEFAULT,"retrolooper_mpc_pad_publish"));
-#if defined(__arm__) && defined(__linux__)
-        char executable[256];const auto length=readlink("/proc/self/exe",executable,sizeof(executable)-1);
-        if(length>0){executable[length]=0;const auto* name=std::strrchr(executable,'/');requireTrackBridge=name&&std::strcmp(name+1,"MPC")==0;}
+#ifdef RETROLOOPER_FORCE_BOUNCE
+        nativeClipTarget=reinterpret_cast<decltype(nativeClipTarget)>(dlsym(RTLD_DEFAULT,"retrolooper_force_clip_target"));
+        nativeClipEnqueue=reinterpret_cast<decltype(nativeClipEnqueue)>(dlsym(RTLD_DEFAULT,"retrolooper_force_clip_enqueue"));
+        nativeClipResult=reinterpret_cast<decltype(nativeClipResult)>(dlsym(RTLD_DEFAULT,"retrolooper_force_clip_result"));
+        nativePickerBegin=reinterpret_cast<decltype(nativePickerBegin)>(dlsym(RTLD_DEFAULT,"retrolooper_force_picker_begin"));
+        nativePickerPoll=reinterpret_cast<decltype(nativePickerPoll)>(dlsym(RTLD_DEFAULT,"retrolooper_force_picker_poll"));
+#else
+        nativeTimelineTarget=reinterpret_cast<decltype(nativeTimelineTarget)>(dlsym(RTLD_DEFAULT,"retrolooper_mpc_timeline_target"));
+        nativeTimelineEnqueue=reinterpret_cast<decltype(nativeTimelineEnqueue)>(dlsym(RTLD_DEFAULT,"retrolooper_mpc_timeline_enqueue"));
+        nativeTimelineResult=reinterpret_cast<decltype(nativeTimelineResult)>(dlsym(RTLD_DEFAULT,"retrolooper_mpc_timeline_result"));
 #endif
 #ifdef RETROLOOPER_TESTING
-        if(std::getenv("RETROLOOPER_TEST_TRACK_GUARD"))requireTrackBridge=true;
+        }
+        testTrackGuard=std::getenv("RETROLOOPER_TEST_TRACK_GUARD")!=nullptr;
 #endif
         worker=std::thread([this]{work();});
     }
-    ~Plugin(){quit.store(true);if(worker.joinable())worker.join();}
+    ~Plugin(){
+        quit.store(true);if(worker.joinable())worker.join();
+#ifdef RETROLOOPER_FORCE_BOUNCE
+        if(nativePickerPoll)nativePickerPoll(&fx,padToken,nullptr,1);
+#endif
+    }
     float value(int i) const {return parameters[i].low+values[i].load(std::memory_order_relaxed)*(parameters[i].high-parameters[i].low);}
     int choice(int i) const {return static_cast<int>(std::lround(value(i)));}
     int learnTarget() const {return midiVisibleTargets[std::clamp(choice(learn_target),0,midiVisibleCount-1)];}
@@ -205,7 +262,45 @@ struct Plugin {
                 if(i<=sync_start||(i>=pad_press_01&&i<=pad_press_16)) {if(!actions.push(i))messageCode.store(QueueFull);}
                 else if(i==forget){const int t=learnTarget();notes[choice(gesture)*midiTargetCount+t].store(-1);ccs[t].store(-1);}
                 else if(i==target_previous||i==target_next)values[learn_target].store(norm(learn_target,(choice(learn_target)+(i==target_next?1:midiVisibleCount-1))%midiVisibleCount));
-                else {messageCode.store(Busy);if(!jobs.push({i,choice(file_slot),choice(bars),generation.load()}))messageCode.store(QueueFull);}
+                else {
+                    Job job{i,choice(file_slot),choice(bars),generation.load()};
+#ifdef RETROLOOPER_FORCE_BOUNCE
+                    if(i==bounce_cancel){pickerProject=0;cancelNativePicker.store(true);messageCode.store(ClipCanceled);return;}
+                    if(i==bounce_clip||i==bounce_commit) {
+                        if(!controlsSupported()||!nativeClipTarget||!nativeClipEnqueue||!nativeClipResult){messageCode.store(ClipSetup);return;}
+                        if(i==bounce_clip&&nativePickerBegin&&nativePickerPoll){
+                            if(pickerGeneration.load()){cancelNativePicker.store(true);return;}
+                            if(seconds.load()<=0){messageCode.store(NoLoop);return;}
+                            const int result=nativePickerBegin(&fx,padToken);
+                            if(result==RLO_CLIP_PENDING){
+                                pickerGeneration.store(job.generation+1);messageCode.store(ClipPickSlot);
+                            }else messageCode.store(result==RLO_CLIP_BUSY?ClipBusy:TrackNotSelected);
+                            return;
+                        }
+                        const int result=nativeClipTarget(&fx,&job.clipTarget);
+                        if(result==RLO_CLIP_TRANSPORT_RUNNING){messageCode.store(ClipStopFirst);return;}
+                        if(result==RLO_CLIP_UNAVAILABLE){messageCode.store(ClipSetup);return;}
+                        if(i==bounce_clip){
+                            if(!job.clipTarget.project){messageCode.store(TrackNotSelected);return;}
+                            if(seconds.load()<=0){messageCode.store(NoLoop);return;}
+                            pickerTrack=job.clipTarget.track;pickerProject=job.clipTarget.project;
+                            messageCode.store(ClipPickSlot);return;
+                        }
+                        if(result!=RLO_CLIP_BOUNCED){messageCode.store(SelectClip);return;}
+                        if(!pickerProject.load()||pickerProject!=job.clipTarget.project||pickerTrack!=job.clipTarget.track){
+                            pickerProject=0;messageCode.store(TrackNotSelected);return;
+                        }
+                        job.index=bounce_clip;
+                        pickerProject=0;
+                    }
+#else
+                    if(i==export_audio&&controlsSupported()&&nativeTimelineTarget&&nativeTimelineEnqueue&&nativeTimelineResult){
+                        RloMpcTimelineTarget target{};
+                        if(nativeTimelineTarget(&fx,&target)==RLO_TIMELINE_BOUNCED)job.timelineTarget=target;
+                    }
+#endif
+                    messageCode.store(Busy);if(!jobs.push(job))messageCode.store(QueueFull);
+                }
             }
         } else {
             if(parameters[i].kind==1||parameters[i].options[0])n=norm(i,std::round(parameters[i].low+n*(parameters[i].high-parameters[i].low)));
@@ -240,7 +335,7 @@ struct Plugin {
         prefs.recordMode=static_cast<uint8_t>(timingFor(rec_timing));prefs.overdubMode=static_cast<uint8_t>(timingFor(dub_timing));
         prefs.muteMode=static_cast<uint8_t>(timingFor(mute_timing));
         const auto stopMode=timingFor(stop_timing);prefs.stopMode=static_cast<uint8_t>(stopMode==PlaybackStartMode::Immediate?GlobalStopMode::Immediate:stopMode==PlaybackStartMode::Bar?GlobalStopMode::Bar:GlobalStopMode::LoopEnd);
-        prefs.afterRecordMode=static_cast<uint8_t>(hostMode()&&choice(capture_source)==0&&wantsDub()&&trackAllowed()?1:choice(after_record));engine->setTrackLoopPrefs(0,prefs);
+        prefs.afterRecordMode=static_cast<uint8_t>(hostMode()&&hostRecordControl()&&wantsDub()&&trackAllowed()?1:choice(after_record));engine->setTrackLoopPrefs(0,prefs);
         engine->setAfterRecordMode(static_cast<AfterRecordMode>(prefs.afterRecordMode));
         engine->setLengthQuantizeGrid(!on(host_sync)&&t?LengthQuantizeGrid::Bar:LengthQuantizeGrid::Off);
         engine->setDubModeEnabled(on(record_mode));engine->setMuteModeEnabled(on(mute_mode));
@@ -257,13 +352,27 @@ struct Plugin {
         engine->setTrackIoRouting(0,io);engine->setMetronomeEnabled(!on(host_sync)&&on(click));engine->setMetronomeGain(value(click_gain));
         // Direct monitor is mixed here so its 0..4 input gain matches the desktop plug-in.
     }
-    uint32_t trackStatus() const {return nativeTrackStatus?nativeTrackStatus(const_cast<AEffect*>(&fx)):0;}
-    bool trackSelected() const {constexpr auto mask=RLO_TRACK_READY|RLO_TRACK_SELECTED|RLO_TRACK_MONITOR_ROUTED;return !requireTrackBridge||((trackStatus()&mask)==mask);}
-    bool trackAllowed() const {constexpr auto mask=RLO_TRACK_READY|RLO_TRACK_SELECTED|RLO_TRACK_DISARMED|RLO_TRACK_MONITOR_ROUTED|RLO_TRACK_INPUT_READY;return !requireTrackBridge||((trackStatus()&mask)==mask);}
-    void requestTrackPrepare(){if(requireTrackBridge&&nativeTrackPrepare)nativeTrackPrepare(&fx);}
+    uint32_t trackStatus() const {return nativeTrackStatus&&nativeTrackPrepare?nativeTrackStatus(const_cast<AEffect*>(&fx)):0;}
+    bool controlsSupported() const {return (trackStatus()&RLO_TRACK_SUPPORTED)!=0;}
+    bool managedTrack(uint32_t flags) const {
+#ifdef RETROLOOPER_TESTING
+        if(!testTrackGuard)return false;
+#endif
+        return (flags&RLO_TRACK_SUPPORTED)!=0;
+    }
+    bool trackSelected() const {
+        constexpr auto mask=RLO_TRACK_READY|RLO_TRACK_SELECTED|RLO_TRACK_MONITOR_ROUTED;
+        const auto flags=trackStatus();return !managedTrack(flags)||((flags&mask)==mask);
+    }
+    bool trackAllowed() const {
+        constexpr auto mask=RLO_TRACK_READY|RLO_TRACK_SELECTED|RLO_TRACK_DISARMED|RLO_TRACK_MONITOR_ROUTED|RLO_TRACK_INPUT_READY;
+        const auto flags=trackStatus();return !managedTrack(flags)||((flags&mask)==mask);
+    }
+    bool hostRecordControl() const {return choice(capture_source)==0&&controlsSupported()&&physicalRec&&physicalReady&&physicalReady();}
+    void requestTrackPrepare(){if(managedTrack(trackStatus()))nativeTrackPrepare(&fx);}
     void enforceTrackCapture(){
-        if(!requireTrackBridge)return;
         const auto flags=trackStatus();
+        if(!managedTrack(flags))return;
         const bool ready=(flags&(RLO_TRACK_READY|RLO_TRACK_MONITOR_ROUTED))==(RLO_TRACK_READY|RLO_TRACK_MONITOR_ROUTED);
         const bool selected=ready&&(flags&RLO_TRACK_SELECTED);
         const bool allowed=selected&&(flags&RLO_TRACK_DISARMED)&&(flags&RLO_TRACK_INPUT_READY);
@@ -286,17 +395,19 @@ struct Plugin {
         if(ready&&!selected){hostRecordArmed=false;pendingCaptureAction=-1;manualDub=-1;localDubPending=false;}
     }
     void observePhysicalRecord() {
-        if(!physicalRec)return;
+        if(!physicalRec||!controlsSupported())return;
         const auto current=physicalRec(),delta=current-lastPhysicalRec;lastPhysicalRec=current;
-        if(!delta||!hostMode()||choice(capture_source)!=0||!physicalReady||!physicalReady()||!trackAllowed())return;
+        if(!delta||!hostMode()||!hostRecordControl()||!trackAllowed())return;
         const auto& track=engine->tracks()[0];
         if(track.lengthSamples()==0&&track.state()!=TrackState::Recording&&(delta&1)){
             hostRecordArmed=!hostRecordArmed;if(hostRecordArmed){failedStorageRequest=0;loopSuppressed=false;manualDub=-1;}messageCode.store(hostRecordArmed?SequenceArmed:Ready);
         }
     }
     double lengthMultiplier() const {return choice(length_ratio)==0?.5:choice(length_ratio)==2?2.:1.;}
+    double captureSpan() const {return hostCycleValid?hostCycleEnd-hostCycleStart:engine->quartersPerNotatedBar()*choice(bars);}
+    double captureOrigin() const {return hostCycleValid?hostCycleStart:0.;}
     bool hostMode() const {return on(host_sync);}
-    bool wantsDub() const {return manualDub<0?(choice(capture_source)==0&&hostRecording.load()):manualDub!=0;}
+    bool wantsDub() const {return manualDub<0?(hostRecordControl()&&hostRecording.load()):manualDub!=0;}
     void followHost(int frames) {
         const auto* time=host&&hostMode()?reinterpret_cast<VstTimeInfo*>(host(&fx,audioMasterGetTime,0,
             kVstPpqPosValid|kVstTempoValid|kVstTimeSigValid|kVstCyclePosValid,nullptr,0)):nullptr;
@@ -315,8 +426,9 @@ struct Plugin {
                 engine->setTimeSignature(time->timeSigNumerator,time->timeSigDenominator);
             const bool playing=time->flags&kVstTransportPlaying;
             const bool edge=!hadHost||playing!=hostPlaying;
-            if(choice(capture_source)==0&&(edge||((time->flags&kVstTransportRecording)!=0)!=wasRecording)){manualDub=-1;loopSuppressed=false;}
-            else if(choice(capture_source)!=0&&edge&&wasPlaying&&!playing){manualDub=0;localDubPending=false;}
+            const bool followRecord=hostRecordControl();
+            if(followRecord&&(edge||((time->flags&kVstTransportRecording)!=0)!=wasRecording)){manualDub=-1;loopSuppressed=false;}
+            else if(!followRecord&&edge&&wasPlaying&&!playing){manualDub=0;localDubPending=false;}
             double error=hostBeat-expectedBeat;
             // A normal cycle wrap is continuous musical time, including during a 2x take.
             if(hostCycleValid&&(time->flags&kVstTransportCycleActive)){
@@ -344,11 +456,11 @@ struct Plugin {
             expectedBeat=hostBeat+(playing?frames*hostTempo/(60*rate):0);
             hostPlaying=playing;hostRecording=(time->flags&kVstTransportRecording)!=0;hadHost=true;
             if(hostRecording!=wasRecording)loopRevision.fetch_add(1);
-            if(choice(capture_source)==0&&playing&&hostRecording&&trackSelected()&&!trackAllowed()
+            if(followRecord&&playing&&hostRecording&&trackSelected()&&!trackAllowed()
                &&(engine->tracks()[0].lengthSamples()>0||hostRecordArmed))requestTrackPrepare();
             if(playing&&!launchPending&&trackAllowed()){
                 const auto state=engine->tracks()[0].state();
-                if(wantsDub()&&((choice(capture_source)==0&&hostRecording&&!wasRecording)||!wasPlaying||!lastTrackAllowed||seek||localDubPending)){
+                if(wantsDub()&&((followRecord&&hostRecording&&!wasRecording)||!wasPlaying||!lastTrackAllowed||seek||localDubPending)){
                     // Repositioning restarts the engine's playback state. An
                     // existing loop must resume capture at that new phase while
                     // MPC stays in REC; there may be no later recording edge.
@@ -360,7 +472,7 @@ struct Plugin {
                         c.executeAtSample=localDubPending&&timingFor(dub_timing)!=PlaybackStartMode::Immediate?engine->targetSampleForTimingMode(timingFor(dub_timing)==PlaybackStartMode::Bar?TimingMode::Bar:TimingMode::LoopEnd,0,engine->transport().samplePosition()):engine->transport().samplePosition();
                         if(engine->enqueueCommand(c))localDubPending=false;
                     }
-                } else if(choice(capture_source)==0&&!wantsDub()&&!hostRecording&&wasRecording){
+                } else if(followRecord&&!wantsDub()&&!hostRecording&&wasRecording){
                     if(!hostRecording&&wasRecording)hostRecordArmed=false;
                     if(hostCapture&& !hostRecording&&wasRecording)closeHostCapture();
                     else if(trackStateIsOverdub(state)){
@@ -370,7 +482,7 @@ struct Plugin {
             }
             lastTrackAllowed=trackAllowed();
             const double bars=hostCycleValid?(hostCycleEnd-hostCycleStart)/engine->quartersPerNotatedBar():0;
-            sequenceBars.store(static_cast<float>(bars));captureBars.store(static_cast<float>(bars*lengthMultiplier()));
+            sequenceBars.store(static_cast<float>(bars));captureBars.store(static_cast<float>(captureSpan()/engine->quartersPerNotatedBar()*lengthMultiplier()));
             const auto& liveTrack=engine->tracks()[0];
             if(liveTrack.lengthSamples()>0&&liveTrack.state()!=TrackState::Recording&&hostCycleValid){
                 const double reference=liveTrack.referenceBpm()>1?liveTrack.referenceBpm():hostTempo;
@@ -380,8 +492,9 @@ struct Plugin {
                     if(loopLengthRequested.exchange(target)!=target)conformFailed.store(0);
                 }
             }
+            if(!hostCycleValid)loopLengthRequested.store(0);
             if(engine->tracks()[0].lengthSamples()==0&&engine->tracks()[0].state()!=TrackState::Recording){
-                const double frames=hostCycleValid?(hostCycleEnd-hostCycleStart)*lengthMultiplier()*60*rate/hostTempo:0;
+                const double frames=captureSpan()*lengthMultiplier()*60*rate/hostTempo;
                 if(frames>=2&&frames<=rate*120)storageRequested.store(static_cast<std::size_t>(std::llround(frames))+kMaxBlock);
             }
         } else {
@@ -394,7 +507,7 @@ struct Plugin {
         }
     }
     int nextCaptureFrame(int offset,int frames,float** in,int limit) const {
-        if(!hostMode()||!hostRecordArmed||!hostValid||!hostCycleValid||!hostPlaying||!trackAllowed())return frames;
+        if(!hostMode()||!hostRecordArmed||!hostValid||!hostPlaying||!trackAllowed())return frames;
         if(on(auto_start)){
             const int route=choice(input);const double gain=value(input_gain),level=std::pow(10.,value(start_threshold)/20.);
             if(route==3||gain<=0||!in)return frames;
@@ -405,8 +518,8 @@ struct Plugin {
             }
             return frames;
         }
-        const double span=hostCycleEnd-hostCycleStart,perSample=hostTempo/(60*rate);
-        double phase=std::fmod(hostBeat+offset*perSample-hostCycleStart,span);if(phase<0)phase+=span;
+        const double span=captureSpan(),perSample=hostTempo/(60*rate);
+        double phase=std::fmod(hostBeat+offset*perSample-captureOrigin(),span);if(phase<0)phase+=span;
         const double delta=phase<.002||span-phase<.002?0:span-phase;
         return std::min(frames,offset+static_cast<int>(std::llround(delta/perSample)));
     }
@@ -419,17 +532,17 @@ struct Plugin {
     }
     void launchFromBeginning(){
         launchPending=false;engine->followExternalTransport(true,0,true);messageCode.store(Ready);
-        if(hostRecording&&choice(capture_source)==0&&trackAllowed()){EngineCommand c{CommandType::OverdubToggle,0};c.trackCount=1;c.executeAtSample=engine->transport().samplePosition();engine->enqueueCommand(c);}
+        if(hostRecording&&hostRecordControl()&&trackAllowed()){EngineCommand c{CommandType::OverdubToggle,0};c.trackCount=1;c.executeAtSample=engine->transport().samplePosition();engine->enqueueCommand(c);}
     }
     void beginHostCapture(int offset) {
         if(!trackAllowed())return;
-        const double count=(hostCycleEnd-hostCycleStart)*lengthMultiplier()*60*rate/hostTempo;
+        const double count=captureSpan()*lengthMultiplier()*60*rate/hostTempo;
         if(count<2||count>rate*120){hostRecordArmed=false;messageCode.store(SequenceTooLong);return;}
         const auto needed=static_cast<std::size_t>(std::llround(count))+kMaxBlock;
         if(engine->captureStorageCapacity()<needed||(on(auto_start)&&engine->captureStorageSize()<needed)){storageRequested.store(needed);messageCode.store(failedStorageRequest==needed?MemoryLimit:PreparingAudio);return;}
         if(on(auto_start)){
-            const double quarters=(hostCycleEnd-hostCycleStart)*lengthMultiplier();
-            double phase=std::fmod(hostBeat+offset*hostTempo/(60*rate)-hostCycleStart,quarters);if(phase<0)phase+=quarters;
+            const double quarters=captureSpan()*lengthMultiplier();
+            double phase=std::fmod(hostBeat+offset*hostTempo/(60*rate)-captureOrigin(),quarters);if(phase<0)phase+=quarters;
             engine->hostBeginThresholdCapture(static_cast<std::size_t>(std::llround(count)),static_cast<std::size_t>(std::llround(phase*60*rate/hostTempo)));
         } else {
             EngineCommand c{CommandType::RecordToggle,0};c.trackCount=1;c.executeAtSample=engine->transport().samplePosition();
@@ -450,7 +563,7 @@ struct Plugin {
     void trigger(int index,int offset=0) {
         if(index<0||index>sync_start)return;
         const bool captureAction=index==record||index==dub||(index==play&&on(record_mode));
-        if(requireTrackBridge&&captureAction){
+        if(captureAction&&managedTrack(trackStatus())){
             if(!trackSelected()){constexpr auto ready=RLO_TRACK_READY|RLO_TRACK_MONITOR_ROUTED;messageCode.store((trackStatus()&ready)==ready?TrackNotSelected:TrackBridgeUnavailable);return;}
             requestTrackPrepare();
             if(!trackAllowed()){pendingCaptureAction=index;messageCode.store(TrackArmPending);return;}
@@ -475,10 +588,10 @@ struct Plugin {
             if(index==record&&tr.lengthSamples()==0&&tr.state()!=TrackState::Recording){
                 hostRecordArmed=!hostRecordArmed;
                 if(hostRecordArmed){failedStorageRequest=0;loopSuppressed=false;manualDub=-1;}
-                messageCode.store(hostRecordArmed?(!hostValid?HostUnavailable:!hostCycleValid?SequenceUnavailable:SequenceArmed):Ready);return;
+                messageCode.store(hostRecordArmed?(!hostValid?HostUnavailable:hostCycleValid?SequenceArmed:ManualTakeArmed):Ready);return;
             }
             if((index==record||index==play)&&hostCapture){manualDub=0;configure();closeHostCapture();return;}
-            if(choice(capture_source)!=0&&(index==record||index==dub)&&tr.lengthSamples()>0&&hostValid&&!hostPlaying){
+            if(!hostRecordControl()&&(index==record||index==dub)&&tr.lengthSamples()>0&&hostValid&&!hostPlaying){
                 localDubPending=!localDubPending;manualDub=localDubPending?1:0;loopSuppressed=false;messageCode.store(localDubPending?SequenceArmed:Ready);return;
             }
             if((index==record||index==play||index==dub)&&(!hostValid||!hostPlaying)){
@@ -552,11 +665,11 @@ struct Plugin {
     }
     void publish() {
         const auto msg=messageCode.load();
-        if(hostRecordArmed&&(msg==Ready||msg==SequenceArmed||msg==WaitingInput||msg==HostStopped||msg==HostUnavailable
+        if(hostRecordArmed&&(msg==Ready||msg==SequenceArmed||msg==ManualTakeArmed||msg==WaitingInput||msg==HostStopped||msg==HostUnavailable
            ||msg==SequenceUnavailable||msg==TrackBridgeUnavailable||msg==TrackArmPending)){
-            messageCode.store(!hostValid?HostUnavailable:!hostCycleValid?SequenceUnavailable:
+            messageCode.store(!hostValid?HostUnavailable:
                 !trackSelected()?TrackBridgeUnavailable:!trackAllowed()?TrackArmPending:
-                !hostPlaying?HostStopped:on(auto_start)?WaitingInput:SequenceArmed);
+                !hostPlaying?HostStopped:on(auto_start)?WaitingInput:hostCycleValid?SequenceArmed:ManualTakeArmed);
         }
         const auto& tr=engine->tracks()[0];stateCode.store(hostRecordArmed||launchPending?static_cast<int>(TrackState::Armed):static_cast<int>(tr.state()));
         const auto len=tr.state()==TrackState::Recording?tr.recordedSamples():tr.lengthSamples();
@@ -642,14 +755,21 @@ struct Plugin {
         if(i==binding){const int target=learnTarget(),g=choice(gesture);return (notes[g*midiTargetCount+target].load()+1)/258.f+(ccs[target].load()+1)/33282.f;}
         if(i==sequence_info)return std::clamp(sequenceBars.load()/32768.f+captureBars.load()/65536.f,0.f,1.f);
         if(i==host_transport)return !hostValid?0:!hostPlaying?.333333f:hostRecording?1:.666667f;
-        if(i==button_status)return choice(capture_source)!=0?float(trackSelected()):physicalReady&&physicalReady()?1.f:0.f;
+        if(i==button_status)return !controlsSupported()?.5f:float(trackSelected());
         if(i==clock_health)return (seekCount.load()%1000)/1000.f+(droppedBlocks.load()%1000)/1000000.f;
         if(i==status)return std::clamp(stateCode.load()/10.f,0.f,1.f);
         if(i==duration)return std::clamp(seconds.load()/120.f,0.f,1.f);
         if(i==position)return positionValue.load();
         if(i==in_meter)return std::min(1.f,inputPeak.load());
         if(i==out_meter)return std::min(1.f,outputPeak.load());
-        if(i==message)return messageCode.load()/static_cast<float>(FinishCapture);
+        if(i==message)return messageCode.load()/static_cast<float>(lastMessage);
+#ifdef RETROLOOPER_FORCE_BOUNCE
+        if(i==clip_picker)return pickerProject.load()?1.f:0.f;
+        if(i==clip_indicator){
+            const auto ms=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+            return (pickerGeneration.load()||activeJob.load()==bounce_clip)&&ms/250%2==0?1.f:0.f;
+        }
+#endif
         if(i==pad_status)return padFlags.load()/15.f;
         return values[i].load();
     }
@@ -657,17 +777,24 @@ struct Plugin {
         char buf[24]{};
         if(i<0||i>=param_count)return text(dest,"",24);
         const int s=stateCode.load();
-        if(i==pad_status){const auto flags=padFlags.load();text(dest,!on(pad_bank_enabled)?"PAD BANK A OFF":!nativePadPublish?"PAD HELPER REQUIRED":!trackSelected()?"SELECT AUDIO TRACK":!(flags&2)?"PRESS PAD BANK A":!(flags&4)?"PAD A / LED WAIT":"PAD BANK A READY",24);return;}
+        if(i==pad_status){const auto flags=padFlags.load();text(dest,!nativePadPublish||!controlsSupported()?"TOUCH PADS / MIDI":!on(pad_bank_enabled)?"PAD BANK A OFF":!trackSelected()?"SELECT AUDIO TRACK":!(flags&2)?"PRESS PAD BANK A":!(flags&4)?"PAD A / LED WAIT":"PAD BANK A READY",24);return;}
         if(i>=pad_label_record&&i<=pad_label_export_audio){const float encoded=values[i].load()*17;const int pad=static_cast<int>(std::lround(encoded));
             if(pad)std::snprintf(buf,sizeof buf,"A%d%s",pad,encoded-pad>.0015?"+":"");else std::snprintf(buf,sizeof buf,"-");text(dest,buf,24);return;}
-        if(i==sequence_info){if(!hostMode())text(dest,"MANUAL LENGTH",24);else if(!hostCycleValid)text(dest,"WAIT MPC LENGTH",24);else{std::snprintf(buf,sizeof buf,"SEQ %.2g > %.2g B",sequenceBars.load(),captureBars.load());text(dest,buf,24);}return;}
+        if(i==sequence_info){if(!hostMode())text(dest,"MANUAL LENGTH",24);else if(!hostValid)text(dest,"WAIT MPC LENGTH",24);else{
+            if(hostCycleValid)std::snprintf(buf,sizeof buf,"SEQ %.2g > %.2g B",sequenceBars.load(),captureBars.load());
+            else std::snprintf(buf,sizeof buf,"TAKE %.2g B",captureBars.load());text(dest,buf,24);
+        }return;}
         if(i==host_transport){text(dest,!hostMode()?"FREE":!hostValid?"WAIT MPC":hostPlaying?(hostRecording?"MPC REC":"MPC PLAY"):"MPC STOP",24);return;}
         if(i==host_click){text(dest,"MPC CLICK",24);return;}
         if(i==host_monitor){text(dest,"CHANNEL",24);return;}
-        if(i==button_status){text(dest,choice(capture_source)!=0?(trackSelected()?"TOUCH + PAD READY":"SELECT AUDIO TRACK"):physicalReady&&physicalReady()?"REC BUTTON READY":"REC BRIDGE MISSING",24);return;}
+        if(i==capture_source&&!controlsSupported()){text(dest,"Touch/Pads",24);return;}
+        if(i==button_status){text(dest,!controlsSupported()?"USE TRACK MONITOR":!trackSelected()?"SELECT AUDIO TRACK":hostRecordControl()?"REC BUTTON READY":"TOUCH + PAD READY",24);return;}
         if(i==clock_health){std::snprintf(buf,sizeof buf,"S%u D%u E%.3f",seekCount.load(),droppedBlocks.load(),peakClockError.load());text(dest,buf,24);return;}
         if(i==status){constexpr const char* states[]{"EMPTY","RECORDING","PLAYING","OVERDUB","STOPPED","ARMED","MUTED","MUTE QUEUED","MUTE QUEUED","UNMUTE QUEUED","DUB QUEUED"};text(dest,states[std::clamp(s,0,10)],24);return;}
-        if(i==message){text(dest,messages[std::clamp(messageCode.load(),0,static_cast<int>(FinishCapture))],24);return;}
+        if(i==message){text(dest,messages[std::clamp(messageCode.load(),0,lastMessage)],24);return;}
+#ifdef RETROLOOPER_FORCE_BOUNCE
+        if(i==clip_picker){text(dest,pickerProject.load()?"PICK DESTINATION":"",24);return;}
+#endif
         if(i==start_threshold)std::snprintf(buf,sizeof buf,"%.1f dB",value(i));
         else if(i==duration)std::snprintf(buf,sizeof buf,"%.2f SEC",seconds.load());
         else if(i==position)std::snprintf(buf,sizeof buf,"%03.0f %%",positionValue.load()*100);
@@ -723,7 +850,7 @@ struct Plugin {
         fallbackReaders.fetch_sub(1);return true;
     }
     void pressPad(unsigned pad){
-        if(pad>=16||!on(pad_bank_enabled)||!trackSelected())return;
+        if(pad>=16||!trackSelected())return;
         if(on(learn)){
             values[pad_a_01+pad].store(norm(pad_a_01+pad,choice(learn_target)+1));values[learn].store(0);messageCode.store(Learned);return;
         }
@@ -731,7 +858,7 @@ struct Plugin {
         if(action>0&&action<=midiVisibleCount)mapped(midiVisibleTargets[action-1],0);
     }
     void pollPads(){
-        if(!nativePadTake)return;
+        if(!nativePadTake||!controlsSupported())return;
         for(int n=0;n<16;++n){uint32_t pad=0;if(!nativePadTake(&fx,padToken,&pad))break;if(on(pad_bank_enabled))pressPad(pad);}
     }
     float padBrightness(int action) const {
@@ -748,11 +875,14 @@ struct Plugin {
         else if(parameter==undo)mode=undoReady.load();
         else if(parameter==redo)mode=redoReady.load();
         else if(activeJob.load()==parameter)mode=2;
+#ifdef RETROLOOPER_FORCE_BOUNCE
+        else if(parameter==bounce_clip&&pickerGeneration.load())mode=2;
+#endif
         else if(parameters[parameter].kind<2&&parameters[parameter].high==1)mode=on(parameter);
         return mode==2?float(blink):float(mode==1);
     }
     void reportPads(){
-        if(!nativePadPublish)return;
+        if(!nativePadPublish||!controlsSupported())return;
         uint8_t rgb[48]{};uint32_t captureMask=0;
         for(int pad=0;pad<16;++pad){
             const int action=choice(pad_a_01+pad);if(action<=0||action>midiVisibleCount)continue;
@@ -916,17 +1046,87 @@ struct Plugin {
             messageCode.store(changed?Edited:NoLoop);publish();publishVisuals();finish();
         }catch(...){engine->setRealtimeActive(true);finish();throw;}
     }
+#ifdef RETROLOOPER_FORCE_BOUNCE
+    void bounceToClip(const Job& request,Audio& audio) {
+        static std::atomic<uint32_t> serial{0};
+        const auto stamp=std::chrono::system_clock::now().time_since_epoch().count();
+        const auto path=std::filesystem::absolute(exportFolder/("Bounce-"+std::to_string(stamp)+"-"+std::to_string(serial.fetch_add(1))+".wav"));
+        writeWave(path,audio);
+        audio={}; // Release the render before Force allocates its own clip audio.
+        if(quit.load()||request.generation!=generation.load())return;
+        uint32_t ticket=0;
+        int result=nativeClipEnqueue(&fx,&request.clipTarget,path.c_str(),&ticket);
+        if(result==RLO_CLIP_PENDING) {
+            const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(30);
+            while(!quit.load()&&request.generation==generation.load()&&std::chrono::steady_clock::now()<deadline) {
+                result=nativeClipResult(ticket,0);
+                if(result!=RLO_CLIP_PENDING)break;
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            if(result==RLO_CLIP_PENDING)result=nativeClipResult(ticket,1);
+        }
+        if(quit.load()||request.generation!=generation.load())return;
+        switch(result) {
+            case RLO_CLIP_BOUNCED:messageCode.store(ClipBounced);break;
+            case RLO_CLIP_SELECTION_CHANGED:messageCode.store(ClipChanged);break;
+            case RLO_CLIP_TRANSPORT_RUNNING:messageCode.store(ClipStopFirst);break;
+            case RLO_CLIP_BUSY:messageCode.store(ClipBusy);break;
+            default:messageCode.store(ClipFailed);break;
+        }
+    }
+#else
+    void bounceToTimeline(const Job& request,Audio& audio) {
+        static std::atomic<uint32_t> serial{0};
+        const auto stamp=std::chrono::system_clock::now().time_since_epoch().count();
+        const auto path=std::filesystem::absolute(exportFolder/("Bounce-"+std::to_string(stamp)+"-"+std::to_string(serial.fetch_add(1))+".wav"));
+        writeWave(path,audio);
+        audio={};
+        if(quit.load()||request.generation!=generation.load())return;
+        uint32_t ticket=0;
+        int result=nativeTimelineEnqueue(&fx,&request.timelineTarget,path.c_str(),&ticket);
+        const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(30);
+        while(result==RLO_TIMELINE_PENDING&&!quit.load()&&request.generation==generation.load()&&std::chrono::steady_clock::now()<deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            result=nativeTimelineResult(ticket,0);
+        }
+        if(result==RLO_TIMELINE_PENDING)result=nativeTimelineResult(ticket,1);
+        if(quit.load()||request.generation!=generation.load())return;
+        switch(result){
+            case RLO_TIMELINE_BOUNCED:messageCode.store(TimelineBounced);break;
+            case RLO_TIMELINE_CHANGED:messageCode.store(TimelineChanged);break;
+            case RLO_TIMELINE_BUSY:messageCode.store(TimelineBusy);break;
+            case RLO_TIMELINE_RUNNING:messageCode.store(TimelineStop);break;
+            case RLO_TIMELINE_OCCUPIED:messageCode.store(TimelineOccupied);break;
+            default:messageCode.store(TimelineFailed);break;
+        }
+    }
+#endif
     void doJob(const Job& request) {
         const int job=request.index;
+        bool render=job==export_audio;
+#ifdef RETROLOOPER_FORCE_BOUNCE
+        render=render||job==bounce_clip;
+#endif
         Audio audio;std::filesystem::path path;
         char filename[24];std::snprintf(filename,sizeof filename,"Loop-%02d.wav",request.slot);path=exportFolder/filename;
         if(job==import_audio&&!waveExists(path))path=loopFolder/filename;
         if(job==import_audio)audio=readWave(path);
         std::unique_lock allocationLock(allocationGate,std::defer_lock);if(job==reverse)allocationLock.lock();
-        std::unique_lock snapshotLock(stateGate,std::defer_lock);if(job==export_audio||job==reverse)snapshotLock.lock();
+        std::unique_lock snapshotLock(stateGate,std::defer_lock);if(render||job==reverse)snapshotLock.lock();
         std::unique_lock lock(gate);
         if(request.generation!=generation.load()){messageCode.store(Ready);return;}
-        if(job==export_audio) {
+        if(render) {
+#ifdef RETROLOOPER_FORCE_BOUNCE
+            if(job==bounce_clip) {
+                const auto state=engine->tracks()[0].state();
+                if(state==TrackState::Recording||trackStateIsOverdub(state)||hostCapture){messageCode.store(ClipEndCapture);return;}
+            }
+#else
+            if(request.timelineTarget.arrangement) {
+                const auto state=engine->tracks()[0].state();
+                if(state==TrackState::Recording||trackStateIsOverdub(state)||hostCapture){messageCode.store(TimelineCapture);return;}
+            }
+#endif
             audio.rate=rate;const float hp=value(hp_cutoff),lp=value(lp_cutoff),gain=value(volume)*value(master),panValue=value(pan);
             if(!engine->beginStateSnapshot()){messageCode.store(Busy);return;}
             lock.unlock();bool copied=false;
@@ -937,6 +1137,11 @@ struct Plugin {
             const auto warmup=std::min<std::size_t>(audio.left.size(),static_cast<std::size_t>(audio.rate*.5));
             for(std::size_t i=audio.left.size()-warmup;i<audio.left.size();++i){float l=audio.left[i],r=audio.right[i];renderFilters.process(l,r);}
             for(std::size_t i=0;i<audio.left.size();++i){renderFilters.process(audio.left[i],audio.right[i]);audio.left[i]*=gain*panGainL(panValue);audio.right[i]*=gain*panGainR(panValue);}
+#ifdef RETROLOOPER_FORCE_BOUNCE
+            if(job==bounce_clip){bounceToClip(request,audio);return;}
+#else
+            if(request.timelineTarget.arrangement){bounceToTimeline(request,audio);return;}
+#endif
             std::lock_guard exportLock(exportGate);int slot=request.slot;bool available=false;
             for(int n=0;n<64;++n){slot=1+(request.slot-1+n)%64;std::snprintf(filename,sizeof filename,"Loop-%02d.wav",slot);path=exportFolder/filename;if(!waveExists(path)){available=true;break;}}
             if(!available){messageCode.store(SlotExists);return;}
@@ -1007,6 +1212,24 @@ struct Plugin {
         }catch(const std::bad_alloc&){conformFailed.store(wanted);messageCode.store(MemoryLimit);finish();}
         catch(const std::exception&e){conformFailed.store(wanted);messageCode.store(FileError);std::fprintf(stderr,"RetroLooper length sync: %s\n",e.what());finish();}
     }
+#ifdef RETROLOOPER_FORCE_BOUNCE
+    bool takeForcePick(Job& job) {
+        const uint32_t armed=pickerGeneration.load();
+        if(cancelNativePicker.exchange(false)||(armed&&armed!=generation.load()+1)){
+            if(nativePickerPoll)nativePickerPoll(&fx,padToken,nullptr,1);
+            if(pickerGeneration.exchange(0))messageCode.store(ClipCanceled);
+            return false;
+        }
+        if(!armed)return false;
+        const int result=nativePickerPoll(&fx,padToken,&job.clipTarget,0);
+        if(result==RLO_CLIP_PENDING)return false;
+        pickerGeneration.store(0);
+        if(result!=RLO_CLIP_BOUNCED){messageCode.store(ClipCanceled);return false;}
+        job.index=bounce_clip;
+        job.generation=armed-1;
+        return true;
+    }
+#endif
     void work() {
         while(!quit.load()) {
             conformLoopLength();
@@ -1027,10 +1250,23 @@ struct Plugin {
                 }
             }
             Job job;
-            if(jobs.pop(job)) {
+            const bool queued=jobs.pop(job);
+#ifdef RETROLOOPER_FORCE_BOUNCE
+            const bool picked=!queued&&takeForcePick(job);
+            if(queued||picked) {
+                if(job.generation!=generation.load()){
+                    if(picked)nativePickerPoll(&fx,padToken,nullptr,1);
+                    continue;
+                }
+#else
+            if(queued) {
                 if(job.generation!=generation.load())continue;
+#endif
                 editing.store(true);activeJob.store(job.index);messageCode.store(Busy);
                 try {doJob(job);} catch(const std::exception& e) {std::fprintf(stderr,"RetroLooper file/edit error: %s\n",e.what());messageCode.store(FileError);} catch(...) {messageCode.store(FileError);}
+#ifdef RETROLOOPER_FORCE_BOUNCE
+                if(picked)nativePickerPoll(&fx,padToken,nullptr,1);
+#endif
                 editing.store(false);activeJob.store(-1);
             } else std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
@@ -1068,7 +1304,12 @@ struct Plugin {
         uint32_t checksum;std::memcpy(&checksum,raw+size-4,4);if(checksum!=hash(raw,size-4))return false;
         uint32_t magic,version,count,frames;double savedRate,reference;int32_t cycles,beats,muted;
         read(magic);read(version);read(count);read(savedRate);read(frames);read(reference);read(cycles);read(beats);read(muted);
-        if(magic!=0x314f4c52||((version!=1&&version!=kStateVersion)|| (version==1?count!=162&&count!=kLegacyParams:count!=167&&count!=169&&count!=175&&count!=176&&count!=179&&count!=180&&count!=181&&count!=183&&count!=216&&count!=265&&count!=param_count))||(savedRate!=44100&&savedRate!=48000)||frames>savedRate*120||!std::isfinite(reference)||reference<0||reference>1000||cycles<1||cycles>64||beats<0||beats>4096||(muted!=0&&muted!=1))return false;
+        const bool currentLayout=count==param_count
+#ifdef RETROLOOPER_FORCE_BOUNCE
+            ||count==266||count==267
+#endif
+            ;
+        if(magic!=0x314f4c52||((version!=1&&version!=kStateVersion)|| (version==1?count!=162&&count!=kLegacyParams:count!=167&&count!=169&&count!=175&&count!=176&&count!=179&&count!=180&&count!=181&&count!=183&&count!=216&&count!=265&&!currentLayout))||(savedRate!=44100&&savedRate!=48000)||frames>savedRate*120||!std::isfinite(reference)||reference<0||reference>1000||cycles<1||cycles>64||beats<0||beats>4096||(muted!=0&&muted!=1))return false;
         std::array<float,param_count> params;std::array<int32_t,4*midiTargetCount> bindings;
         for(int i=0;i<param_count;++i)params[i]=norm(i,parameters[i].initial);
         for(uint32_t i=0;i<count;++i){read(params[i]);if(!std::isfinite(params[i])||params[i]<0||params[i]>1)return false;}
@@ -1076,6 +1317,10 @@ struct Plugin {
         bindings.fill(-1);
         uint32_t targets=7;if(version>=2)read(targets);
         if(targets<7||targets>midiTargetCount)return false;
+#ifdef RETROLOOPER_FORCE_BOUNCE
+        if(targets<midiTargetCount)for(int i=pad_a_01;i<=pad_a_16&&i<static_cast<int>(count);++i)
+            params[i]=norm(i,std::lround(params[i]*(targets-7)));
+#endif
         for(int g=0;g<4;++g)for(uint32_t i=0;i<targets;++i){int32_t v;read(v);if(v<-1||v>127)return false;bindings[g*midiTargetCount+i]=v;}
         if(count<=176){
             const int oldTarget=static_cast<int>(std::lround(params[learn_target]*(targets-1)));
@@ -1109,6 +1354,10 @@ struct Plugin {
         gestures.reset();filters.prepare(rate);ccDown.fill(false);for(auto& stamp:hostPressMs)stamp.store(0);lastManualTempo=-1;hadHost=false;hostRecordArmed=false;hostCapture=false;launchPending=false;manualDub=-1;localDubPending=false;loopSuppressed=false;captureRemaining=0;captureTotal=0;animationFrames=0;if(physicalRec)lastPhysicalRec=physicalRec();cassette=CassetteTransport{};visualSamples=0;visualRefreshFrames=0;
         visualPeaks.fill(0);visualSquares.fill(0);meterPeaks.fill(0);meterRms.fill(0);focusBallistics.reset();
         for(int i=input_peak_l;i<param_count;++i)if(parameters[i].kind==3)values[i].store(0);
+#ifdef RETROLOOPER_FORCE_BOUNCE
+        pickerProject=0;
+        cancelNativePicker.store(true);
+#endif
         configure();publish();publishVisuals();messageCode.store(Ready);return true;
     }
 };
@@ -1141,7 +1390,7 @@ static intptr_t dispatch(AEffect* e,int32_t op,int32_t index,intptr_t val,void* 
                 return 1;
             }
             case effGetPlugCategory:return 1;
-            case effGetEffectName:case effGetProductString:text(ptr,"RetroLooper One",32);return 1;
+            case effGetEffectName:case effGetProductString:text(ptr,"Retrolooper One",32);return 1;
             case effGetVendorString:text(ptr,"RetroLooper",64);return 1;
             case effGetVendorVersion:return kVersion;
             case effGetVstVersion:return 2400;

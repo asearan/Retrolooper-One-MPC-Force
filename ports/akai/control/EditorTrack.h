@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 /* Pinned MPC 3.10.0.49 UI/model paths. Called only from our native UI queue.
    The live overlay child list supplies visibility. EditEffectSession supplies

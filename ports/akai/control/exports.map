@@ -10,5 +10,8 @@
         retrolooper_mpc_track_prepare;
         retrolooper_mpc_pad_take;
         retrolooper_mpc_pad_publish;
+        retrolooper_mpc_timeline_target;
+        retrolooper_mpc_timeline_enqueue;
+        retrolooper_mpc_timeline_result;
     local: *;
 };

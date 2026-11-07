@@ -1,37 +1,27 @@
-# Build from source
+# Build Retrolooper One from source
 
-Copyright © 2026 IAMTHEBAND LLC, Retroloop USA.
+Use Python 3.9+, Pillow, a C++20 compiler, and Zig 0.13.0. The effects target ARMv7 hard-float Linux with glibc 2.28. No JUCE or Steinberg SDK is needed. The native skins use MPC OS 3.x controls.
 
-Python 3.9+, Pillow, a C++20 compiler and Zig 0.13.0 are required. Mac host tests/preview use clang++; ARM output uses Zig's ARMv7 hard-float/glibc 2.28 target. No JUCE or Steinberg SDK is required.
+Clone [OpenMPC's VST tools](https://github.com/open-mpc/mpc-vst-plugins) with submodules and check out `6dd48faa414bd9e3390e5824b0a0e3126f965dbd` for the skin generator. From this repository's root:
 
-The skin generator is pinned to open-mpc/mpc-vst-plugins commit 6dd48faa414bd9e3390e5824b0a0e3126f965dbd. Clone that project with submodules and check out the pinned commit. Catalog packaging uses the current checked release tools, recorded in release/BUILD-INFO.json.
+```sh
+python3 ports/akai/build.py test --sanitize
+python3 ports/akai/build.py arm --zig /path/to/zig
+python3 ports/akai/build.py package --kit /path/to/pinned-mpc-vst-plugins
 
-~~~sh
-python3 -m pip install pillow
-cd ports/akai
-python3 build.py test --sanitize
-python3 build.py arm --zig /path/to/zig-0.13.0/zig
-python3 build.py skin --kit /path/to/pinned-mpc-vst-plugins
-python3 build.py preview
-python3 tools/preview_server.py --port 8765
-~~~
+python3 ports/akai/force/build_force.py test --sanitize
+python3 ports/akai/force/build_force.py arm --zig /path/to/zig
+python3 ports/akai/force/build_force.py package --kit /path/to/pinned-mpc-vst-plugins
+```
 
-Force is built separately, without replacing the MPC binary/helper:
+The two products use the same core source, with their existing VST IDs and separate skins. The shared build copies engine files into a generated directory and applies checked port adaptations there. Preserve parameter order for project and automation compatibility.
 
-~~~sh
-cd ports/akai/force
-python3 build_force.py test --sanitize
-python3 build_force.py arm --zig /path/to/zig-0.13.0/zig
-python3 build_force.py skin --kit /path/to/pinned-mpc-vst-plugins
-python3 build_controls.py --zig /path/to/zig-0.13.0/zig
-~~~
+The MPC ARM command also produces its stripped Controls library. To build or rebuild the Controls libraries independently and package them as optional Device patches:
 
-The shared build copies engine sources into a generated build directory and applies asserted port adaptations. Parent engine sources stay unchanged. The Force generator separately applies its firmware/profile and grid adaptations. Do not change parameter indices/order without reviewing project and automation compatibility.
+```sh
+python3 ports/akai/build.py controls --zig /path/to/zig
+python3 ports/akai/force/build_controls.py --zig /path/to/zig
+python3 ports/akai/device-patches/build_patches.py --out /path/to/patch-output
+```
 
-For catalog-ready packages after building both products:
-
-~~~sh
-python3 release/package_catalog.py --kit /path/to/current-mpc-vst-plugins
-~~~
-
-Release packages declare their public source/license and exact helper dependency. Native controls are firmware-specific; a new firmware requires validation, not simply changing the version label.
+The `package` commands make local effect ZIPs for development. Catalog release ZIPs should use the current OpenMPC release tooling with the public source, license and portable validation options. Ship the Controls scripts independently as Device patches. Each native build must be profiled and tested before it is supported.

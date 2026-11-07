@@ -1,5 +1,3 @@
-// Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.
-// SPDX-License-Identifier: GPL-3.0-only
 // Local preview bridge. Never linked into the MPC release library.
 #include "Vst2.h"
 #include "Parameters.h"

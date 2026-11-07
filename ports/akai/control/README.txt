@@ -1,6 +1,6 @@
-RetroLooper One Controls (MPC) and Track companion 0.2.7
+Retrolooper One MPC Controls 0.2.13
 
-For RetroLooper One 0.3.6 on the MPC One+ with fingerprinted MPC 3.10.0.49.
+For Retrolooper One 0.3.9 on the MPC One+ with fingerprinted MPC 3.10.0.49.
 It observes physical REC (channel 1 note 73) and OVERDUB (note 80), preserves
 native transport bytes/mappings, and reads/writes no audio. Physical REC still has its
 own atomic counter, distinct from MPC's combined recording flag.
@@ -20,7 +20,7 @@ Other tracks' arm settings are not targeted.
 
 Native input monitoring follows the selected Audio track among tracks containing
 RetroLooper. On selection or a capture cue, that track is prepared with Monitor
-IN; the other RetroLooper Audio tracks use Monitor OFF. Saved MERGE settings are accepted. A manual OFF/AUTO/MERGE choice
+MERGE; the other RetroLooper Audio tracks use Monitor OFF. A manual OFF/AUTO/IN choice
 on the stable selected track is retained until a new selection or capture cue.
 Tracks without RetroLooper and their monitor settings are not targeted. Input
 ports, output routes, native timeline clips and loop buffers are unchanged.
@@ -29,6 +29,11 @@ The pinned native modes are OFF=0, IN=1, AUTO=2, MERGE=3. Version 0.2.3 corrects
 the IN/AUTO mapping used in 0.2.1/0.2.2. With native REC ARM Off, preparing AUTO
 instead of IN could remove the input exactly when capture was cued. The routing
 regression uses the human-confirmed raw IN value to guard against that mistake.
+
+EXPORT saves a WAV in RetroLooper Exports on the internal drive. With
+transport stopped, the native bridge also places the loop at the start
+of the selected Audio track's current sequence when the range is empty.
+The edit runs on the MPC UI thread and supports native Undo.
 
 Opening a RetroLooper insert editor selects its owning native Audio track.
 The helper reads the live touchscreen overlay child list and EditEffectSession,
@@ -102,10 +107,10 @@ See native-ui-LICENSE. Other protocol references:
 https://github.com/henning/Hakai-MPC
 https://github.com/sd88me/mpc-addin-skipback
 
-Installation uses mpc-vst-plugins' addin installer, preserving existing preload
-entries and backing up settings. Save the project before the required MPC app
-restart. The library exports exactly ten audited controller/track/pad functions;
-compiler/runtime helpers remain hidden. Isolated model/parser/controller tests pass. The existing native monitor and
+Install through the separate experimental Device patch, which preserves existing
+preload entries and backs up its changes. Save the project before the required
+MPC app restart. The library exports only its audited controller, track, pad and
+timeline functions. Isolated model/parser/controller tests pass. The existing native monitor and
 selected-track capture paths passed the live four-track test with 0.2.3. The new
 0.2.5 Bank A colours, physical Pad 14 view switching and steady touchscreen
 assignment-knob dragging were confirmed on the MPC. Version 0.2.6 passed
