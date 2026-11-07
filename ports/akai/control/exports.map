@@ -1,0 +1,14 @@
+{
+    global:
+        snd_rawmidi_open;
+        snd_rawmidi_read;
+        snd_rawmidi_close;
+        snd_rawmidi_write;
+        retrolooper_mpc_rec_generation;
+        retrolooper_mpc_button_ready;
+        retrolooper_mpc_track_status;
+        retrolooper_mpc_track_prepare;
+        retrolooper_mpc_pad_take;
+        retrolooper_mpc_pad_publish;
+    local: *;
+};

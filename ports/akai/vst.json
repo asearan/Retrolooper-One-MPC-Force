@@ -1,0 +1,12 @@
+{
+  "name": "RetroLooper One",
+  "vendor": "RetroLooper",
+  "uid": "RlO1",
+  "version": 306,
+  "so": "retrolooper_one.so",
+  "params": "params.json",
+  "layout": "layout.conf",
+  "effect": true,
+  "cc": false,
+  "nrpn": false
+}

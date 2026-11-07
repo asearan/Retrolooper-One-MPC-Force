@@ -1,0 +1,6 @@
+ADDIN_ID=retrolooper-force-controls
+ADDIN_NAME='RetroLooper Force Controls'
+ADDIN_SO=retrolooper_force_controls.so
+ADDIN_CONF=''
+ADDIN_FILES='README.txt ButtonBridge.c ButtonProtocol.h TrackBridge.h TrackProtocol.h EditorTrack.h ForceRoot.h PadBridge.h PadProtocol.h PadContext.h firmware-profile.json native-ui-LICENSE exports.map check_exports.py mpc-vst-plugins-LICENSE'
+ADDIN_DONE='Force-only test build. Opening RetroLooper Force selects its owning Audio track. The lower two pad rows control that instance only while its editor is visible; native Force modes retain the full grid when it closes.'

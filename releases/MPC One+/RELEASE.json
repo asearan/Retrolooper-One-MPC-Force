@@ -1,0 +1,26 @@
+{
+  "device": "MPC One+",
+  "status": "Hardware tested on MPC One+ 3.10.0.49",
+  "packages": [
+    {
+      "file": "RetroLooper-One-0.3.6-mpc-armv7.zip",
+      "id": "retrolooper-one",
+      "version": "0.3.6",
+      "kind": "effect",
+      "sha256": "412f3e4f089d9eafadeaab9ee96c08e564106e5f908887bdfb1d95c65174fe53",
+      "binary_sha256": "bc625d472d8566926d89e506cdb640e5325c3d28a260178d048f5a6d2a1c1f08",
+      "depends": [
+        "retrolooper-buttons=0.2.7"
+      ]
+    },
+    {
+      "file": "RetroLooper-MPC-Buttons-0.2.7-mpc-armv7.zip",
+      "id": "retrolooper-buttons",
+      "version": "0.2.7",
+      "kind": "addin",
+      "sha256": "739f00f9acba8e21f5cbc53e17c6d8dcb083e087f42a827c3467622505a81d18",
+      "binary_sha256": "1dc3f1f035ef89e1bb633009bdce3738ca39e98274f3d2cd40b10839ecc659d6",
+      "depends": []
+    }
+  ]
+}

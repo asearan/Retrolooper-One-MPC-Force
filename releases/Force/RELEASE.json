@@ -1,0 +1,26 @@
+{
+  "device": "Force",
+  "status": "Experimental hardware test release; live functional validation pending",
+  "packages": [
+    {
+      "file": "RetroLooper-Force-0.1.0-mpc-armv7.zip",
+      "id": "retrolooper-force",
+      "version": "0.1.0",
+      "kind": "effect",
+      "sha256": "e57f3a57edc7f64936a180d41265ca184d65b9a076db9330695bf50cb044ad54",
+      "binary_sha256": "2bb33ce47e8083ac670e12ca8fa9dc83ee981806896e859ea88a60f776c7f8e1",
+      "depends": [
+        "retrolooper-force-controls=0.1.0"
+      ]
+    },
+    {
+      "file": "RetroLooper-Force-Controls-0.1.0-mpc-armv7.zip",
+      "id": "retrolooper-force-controls",
+      "version": "0.1.0",
+      "kind": "addin",
+      "sha256": "c72c078de1de4b95dbfc6d53c94276e4badfbbc1c67b333b9f956eae9c717d74",
+      "binary_sha256": "9e421e39afe7e293adef9e44d5b63806cfca47e23e856d86cea67b9cbca7c3a0",
+      "depends": []
+    }
+  ]
+}

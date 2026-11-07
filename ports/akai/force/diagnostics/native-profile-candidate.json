@@ -1,0 +1,196 @@
+{
+  "firmware_declared": "3.10",
+  "build_id": "154ae9752e0f3c6490912a703b0dfe4b668b343d",
+  "image_sha256": "7bbbd8050bfe67db4d320df0ab39f5c3194210f9bbd225d8415f0c4c5f43300d",
+  "native_addresses": {
+    "0x96fb64": "0x96fb24",
+    "0x96fb84": "0x96fb44",
+    "0xb5bb40": "0xb5bb00",
+    "0xb5bb50": "0xb5bb10",
+    "0xe5e5d4": "0xe5e594",
+    "0xe5e5d8": "0xe5e598",
+    "0x100e430": "0x100e3f0",
+    "0x100e490": "0x100e450",
+    "0x165c5cc": "0x165c58c",
+    "0x192369c": "0x192365c",
+    "0x19236c8": "0x1923688",
+    "0x1923704": "0x19236c4",
+    "0x1ea2084": "0x1ea1c84",
+    "0x1ea2094": "0x1ea1c94",
+    "0x28fcac0": "0x28fc6e8",
+    "0x28fcac4": "0x28fc6ec",
+    "0x291641c": "0x2916044",
+    "0x2932390": "0x2931fb8",
+    "0x2caebec": "0x2cae7cc",
+    "0x2cb83f8": "0x2cb7fd8",
+    "0x2d2b7b8": "0x2d2b398",
+    "0x2d32370": "0x2d31f50",
+    "0x2d3299c": "0x2d3257c",
+    "0x6c90c90": "0x6c8fcb0",
+    "0x6ca3344": "0x6ca2364",
+    "0x6ca334c": "0x6ca236c",
+    "0x6ca95a0": "0x6ca85c0",
+    "0x6cb6aa8": "0x6cb5ac8",
+    "0x6cb7528": "0x6cb6548",
+    "0x6cb9514": "0x6cb8534",
+    "0x6cb951c": "0x6cb853c",
+    "0x6cb958c": "0x6cb85ac",
+    "0x6cdfaf4": "0x6cdeb14",
+    "0x6cdfe94": "0x6cdeeb4",
+    "0x6ce5650": "0x6ce4670",
+    "0x6d4b5f8": "0x6d4a618",
+    "0x6d4c640": "0x6d4b660",
+    "0x6d4c7fc": "0x6d4b81c",
+    "0x6d501c4": "0x6d4f1e4",
+    "0x6d51624": "0x6d50644",
+    "0x6dafdd0": "0x6daedf0",
+    "0x6dafe14": "0x6daee34",
+    "0x6dd3d3c": "0x6dd2d5c",
+    "0x6dd3de4": "0x6dd2e04",
+    "0x6ddac38": "0x6dd9c58",
+    "0x6ddacac": "0x6dd9ccc",
+    "0x6f35c88": "0x6f34ca8"
+  },
+  "profile_status": "Force host image matched; live application/Audio-track graph and exact code guards passed; live helper actions and Arrange timing pending",
+  "controller": "Force 8x8",
+  "matching_evidence": {
+    "0x96fb64": {
+      "mapped": "0x96fb24",
+      "equal_of_24": 24,
+      "runner_up": 4,
+      "delta": "0x40"
+    },
+    "0x96fb84": {
+      "mapped": "0x96fb44",
+      "equal_of_24": 24,
+      "runner_up": 6,
+      "delta": "0x40"
+    },
+    "0xb5bb40": {
+      "mapped": "0xb5bb00",
+      "equal_of_24": 24,
+      "runner_up": 3,
+      "delta": "0x40"
+    },
+    "0xb5bb50": {
+      "mapped": "0xb5bb10",
+      "equal_of_24": 24,
+      "runner_up": 3,
+      "delta": "0x40"
+    },
+    "0xe5e5d4": {
+      "mapped": "0xe5e594",
+      "equal_of_24": 24,
+      "runner_up": 1,
+      "delta": "0x40"
+    },
+    "0xe5e5d8": {
+      "mapped": "0xe5e598",
+      "equal_of_24": 24,
+      "runner_up": 1,
+      "delta": "0x40"
+    },
+    "0x100e430": {
+      "mapped": "0x100e3f0",
+      "equal_of_24": 24,
+      "runner_up": 2,
+      "delta": "0x40"
+    },
+    "0x100e490": {
+      "mapped": "0x100e450",
+      "equal_of_24": 24,
+      "runner_up": 3,
+      "delta": "0x40"
+    },
+    "0x165c5cc": {
+      "mapped": "0x165c58c",
+      "equal_of_24": 24,
+      "runner_up": 3,
+      "delta": "0x40"
+    },
+    "0x192369c": {
+      "mapped": "0x192365c",
+      "equal_of_24": 24,
+      "runner_up": 6,
+      "delta": "0x40"
+    },
+    "0x19236c8": {
+      "mapped": "0x1923688",
+      "equal_of_24": 24,
+      "runner_up": 3,
+      "delta": "0x40"
+    },
+    "0x1923704": {
+      "mapped": "0x19236c4",
+      "equal_of_24": 24,
+      "runner_up": 2,
+      "delta": "0x40"
+    },
+    "0x1ea2084": {
+      "mapped": "0x1ea1c84",
+      "equal_of_24": 24,
+      "runner_up": 9,
+      "delta": "0x400"
+    },
+    "0x1ea2094": {
+      "mapped": "0x1ea1c94",
+      "equal_of_24": 24,
+      "runner_up": 10,
+      "delta": "0x400"
+    },
+    "0x28fcac0": {
+      "mapped": "0x28fc6e8",
+      "equal_of_24": 24,
+      "runner_up": 17,
+      "delta": "0x3d8"
+    },
+    "0x28fcac4": {
+      "mapped": "0x28fc6ec",
+      "equal_of_24": 24,
+      "runner_up": 18,
+      "delta": "0x3d8"
+    },
+    "0x291641c": {
+      "mapped": "0x2916044",
+      "equal_of_24": 24,
+      "runner_up": 7,
+      "delta": "0x3d8"
+    },
+    "0x2932390": {
+      "mapped": "0x2931fb8",
+      "equal_of_24": 24,
+      "runner_up": 11,
+      "delta": "0x3d8"
+    },
+    "0x2caebec": {
+      "mapped": "0x2cae7cc",
+      "equal_of_24": 24,
+      "runner_up": 23,
+      "delta": "0x420"
+    },
+    "0x2cb83f8": {
+      "mapped": "0x2cb7fd8",
+      "equal_of_24": 24,
+      "runner_up": 24,
+      "delta": "0x420"
+    },
+    "0x2d2b7b8": {
+      "mapped": "0x2d2b398",
+      "equal_of_24": 24,
+      "runner_up": 8,
+      "delta": "0x420"
+    },
+    "0x2d32370": {
+      "mapped": "0x2d31f50",
+      "equal_of_24": 24,
+      "runner_up": 4,
+      "delta": "0x420"
+    },
+    "0x2d3299c": {
+      "mapped": "0x2d3257c",
+      "equal_of_24": 24,
+      "runner_up": 3,
+      "delta": "0x420"
+    }
+  }
+}

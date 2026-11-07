@@ -1,0 +1,23 @@
+{
+  "catalog_tools_commit": "529ca367a19d31b11232783c6ded7910bdc71bd7",
+  "skin_tool_commit": "6dd48faa414bd9e3390e5824b0a0e3126f965dbd",
+  "license": "GPL-3.0-only",
+  "tested_binary_sha256": {
+    "retrolooper-one": "bc625d472d8566926d89e506cdb640e5325c3d28a260178d048f5a6d2a1c1f08",
+    "retrolooper-buttons": "1dc3f1f035ef89e1bb633009bdce3738ca39e98274f3d2cd40b10839ecc659d6",
+    "retrolooper-force": "8ddc350ce85cf4aaf2737fef81caaa7f39e7b05c68a885be0178caa81e1d5759",
+    "retrolooper-force-controls": "9e421e39afe7e293adef9e44d5b63806cfca47e23e856d86cea67b9cbca7c3a0"
+  },
+  "source_tests": "Curated source: sanitized Mac native host suite PASS",
+  "catalog_checks": "All four portable packages: --catalog --require-portable --expect-id --expect-repo PASS; zero warnings",
+  "dates_timezone": "America/New_York",
+  "test_date": "2026-11-06",
+  "copyright": "Copyright (c) 2026 IAMTHEBAND LLC, Retroloop USA.",
+  "release_binary_sha256": {
+    "retrolooper-one": "bc625d472d8566926d89e506cdb640e5325c3d28a260178d048f5a6d2a1c1f08",
+    "retrolooper-buttons": "1dc3f1f035ef89e1bb633009bdce3738ca39e98274f3d2cd40b10839ecc659d6",
+    "retrolooper-force": "2bb33ce47e8083ac670e12ca8fa9dc83ee981806896e859ea88a60f776c7f8e1",
+    "retrolooper-force-controls": "9e421e39afe7e293adef9e44d5b63806cfca47e23e856d86cea67b9cbca7c3a0"
+  },
+  "force_branding_rebuild": "Force effect rebuilt from curated source to present RetroLooper One, preserving RlF1 ID and upgrade folder. Sanitized Mac Force host suite and skin checks; live functional Force validation pending."
+}
