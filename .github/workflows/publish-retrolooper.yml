@@ -1,0 +1,33 @@
+{
+  "name": "Publish RetroLooper releases",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "write"
+  },
+  "jobs": {
+    "publish": {
+      "runs-on": "ubuntu-latest",
+      "steps": [
+        {
+          "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "with": {
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "Verify and unpack reviewed source bundle",
+          "run": "python3 - <<'PY'\nfrom pathlib import Path\nimport hashlib,tarfile\narchive=Path('retrolooper-source-and-packages.tar.gz')\nassert hashlib.sha256(archive.read_bytes()).hexdigest()=='65f9e07cb67fad584fe5e936ee24ba81e90eb2d32c47b300e5ca0ae6563b1e90'\nwith tarfile.open(archive) as bundle:\n    for member in bundle.getmembers():\n        p=Path(member.name)\n        assert not p.is_absolute() and '..' not in p.parts\n        assert member.isfile() or member.isdir()\n    bundle.extractall('.',filter='data')\nPY"
+        },
+        {
+          "name": "Publish source and matching device packages",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "run": "python3 release/publish_github.py"
+        }
+      ]
+    }
+  }
+}
