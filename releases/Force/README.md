@@ -10,6 +10,9 @@ Direct/older-installer install: extract this complete archive and import BOTH co
 
 Copyright © 2026 IAMTHEBAND LLC, Retroloop USA.
 
+VST is a registered trademark of Steinberg Media Technologies GmbH.
+Audio Units is a trademark of Apple Inc.
+
 A dedicated Akai Force port of RetroLooper One, with its own VST ID (`RlF1`), binary, native helper and installer packages. The MPC One+ build is unchanged.
 
 The stereo looper retains sequence-sized allocation, a 120-second maximum, four undo levels, threshold recording, Reverse, HP/LP filters, MIDI assignments, Wave/Tape/Meter views, project recall and the same graphic style. Touchscreen buttons and physical pads control capture. Force supplies the clock and global transport.

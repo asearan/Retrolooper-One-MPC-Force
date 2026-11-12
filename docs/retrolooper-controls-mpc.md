@@ -9,3 +9,9 @@ This installer accepts only ARMv7 and the modified MPC One+ 3.10.0.49 host build
 The patch adds /data/mpc-addins/retrolooper-buttons/retrolooper_buttons.so to /etc/systemd/system/acvs.service.d/90-mpc-addins.conf and preserves unrelated add-ins. Backups are under /data/retrolooper-controls/backups/retrolooper-buttons. The script restarts the Akai app, checks the library loaded and rolls back if it did not.
 
 Save the project first. Run the patch with **status** for a read-only check, **install** and type PATCH to apply, or **uninstall** and type RESTORE to remove just these Controls. The effect and projects stay in place. Check status again after a power cycle. If the device mounts its add-in overlay after systemd reads it on boot, it may need its existing add-in restore setup; this patch does not add or change boot services.
+
+## Trademarks
+
+VST is a registered trademark of Steinberg Media Technologies GmbH.
+
+Audio Units is a trademark of Apple Inc.

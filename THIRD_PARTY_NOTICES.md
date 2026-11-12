@@ -8,3 +8,9 @@ Original RetroLooper source and interface artwork: Copyright © 2026 IAMTHEBAND 
 - Inter, Press Start 2P and VT323 fonts: SIL Open Font License 1.1; see licenses/.
 
 No proprietary Akai firmware image, Steinberg SDK, JUCE SDK, passwords, device captures or user audio is included. The native helper contains firmware-specific ABI constants and guards, and calls the existing host; it does not distribute the host executable. Platform names describe compatibility and do not imply endorsement.
+
+## Trademarks
+
+VST is a registered trademark of Steinberg Media Technologies GmbH.
+
+Audio Units is a trademark of Apple Inc.

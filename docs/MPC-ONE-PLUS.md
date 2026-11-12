@@ -7,3 +7,11 @@ When upgrading from an older `RetroLooper - VST - RetroLooper One` folder, back 
 Cue a take or overdub on the touchscreen, assign MIDI or a Q-Link if desired, and run MPC Play. Retrolooper follows host transport and tempo. If the host does not supply a usable cycle range, set Take Bars on Mixer. Tap **EXPORT** to save a WAV in **RetroLooper Exports** on the internal drive. Import that WAV manually into an MPC Audio track.
 
 The separate [MPC Controls patch](retrolooper-controls-mpc.md) adds Bank A colours and actions, track selection, selected-track MERGE routing and timeline bounce on the supported modified MPC One+ 3.10.0.49 host image. With transport stopped, **EXPORT** also places the loop at bar 1 on the selected Audio track when the destination range is empty. MPC Undo removes the region. Other device and firmware combinations have not been validated.
+
+![Retrolooper One on MPC One+](images/retrolooper-one-screenshot.jpg)
+
+## Trademarks
+
+VST is a registered trademark of Steinberg Media Technologies GmbH.
+
+Audio Units is a trademark of Apple Inc.

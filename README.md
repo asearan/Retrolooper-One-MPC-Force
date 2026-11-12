@@ -13,6 +13,19 @@ Download the effect ZIP for your device. Gen2 builds are outside this release. I
 
 Read the [MPC guide](docs/MPC-ONE-PLUS.md), [Force guide](docs/FORCE.md), and [build instructions](docs/BUILDING.md).
 
+## On the device
+
+| MPC One+ | Force |
+| --- | --- |
+| ![Retrolooper One on MPC One+, Wave view, with record, overdub, and pad controls](docs/images/retrolooper-one-screenshot.jpg) | ![Retrolooper One on Force, Tape view, with the Force pad labels](docs/images/retrolooper-force-screenshot.jpg) |
+| ![Retrolooper One tape view with a recorded loop](docs/images/retrolooper-one-cassette.jpg) | ![Retrolooper One level meters](docs/images/retrolooper-one-meters.jpg) |
+
 If Retrolooper One is useful to you, you can [support development via PayPal](https://paypal.me/adamsearan).
+
+## Trademarks
+
+VST is a registered trademark of Steinberg Media Technologies GmbH.
+
+Audio Units is a trademark of Apple Inc.
 
 Copyright © 2026 IAMTHEBAND LLC, Retroloop USA. GPL-3.0-only.

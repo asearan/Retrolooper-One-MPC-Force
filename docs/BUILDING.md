@@ -25,3 +25,9 @@ python3 ports/akai/device-patches/build_patches.py --out /path/to/patch-output
 ```
 
 The `package` commands make local effect ZIPs for development. Catalog release ZIPs should use the current OpenMPC release tooling with the public source, license and portable validation options. Ship the Controls scripts independently as Device patches. Each native build must be profiled and tested before it is supported.
+
+## Trademarks
+
+VST is a registered trademark of Steinberg Media Technologies GmbH.
+
+Audio Units is a trademark of Apple Inc.

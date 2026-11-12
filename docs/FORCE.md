@@ -9,3 +9,11 @@ Cue a take or overdub on the touchscreen, assign MIDI or a Q-Link if desired, an
 The separate Force Controls patch adds track and editor follow, capture routing, the bottom two physical pad rows and Bounce to Clip on the supported Force 3.10 host image. [Force Controls patch](retrolooper-controls-force.md)
 
 With Controls 0.2.10, finish recording or overdubbing and tap **CLIP**. The button blinks while waiting. Press a destination pad to select its clip and bounce while the looper stays open. You can also open Matrix and select an Audio slot on the touchscreen. The transport can keep playing. An occupied slot is replaced.
+
+![Retrolooper One on Force](images/retrolooper-force-screenshot.jpg)
+
+## Trademarks
+
+VST is a registered trademark of Steinberg Media Technologies GmbH.
+
+Audio Units is a trademark of Apple Inc.

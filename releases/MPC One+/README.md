@@ -10,6 +10,9 @@ Direct/older-installer install: extract this complete archive and import BOTH co
 
 Copyright © 2026 IAMTHEBAND LLC, Retroloop USA.
 
+VST is a registered trademark of Steinberg Media Technologies GmbH.
+Audio Units is a trademark of Apple Inc.
+
 Plugin 0.3.6 + matching MPC integration helper 0.2.7. Hardware tested on MPC One+ with modified host 3.10.0.49, GNU build ID bc141062ea5ea5be619d98366f423c8102574365. Other host builds and Gen2 devices are not validated.
 
 ## Installation
