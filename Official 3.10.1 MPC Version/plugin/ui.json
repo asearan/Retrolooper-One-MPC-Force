@@ -1,0 +1,48 @@
+{
+  "kit": "amber",
+  "pages": [
+    {
+      "name": "LOOP",
+      "controls": [
+        { "param": "Loop", "widget": "fader" },
+        { "param": "Play", "widget": "switch" },
+        { "param": "Length", "widget": "switch" },
+        { "param": "After", "widget": "switch" },
+        { "param": "High Pass", "widget": "knob" },
+        { "param": "Record", "widget": "switch" },
+        { "param": "Bars", "widget": "knob" },
+        { "param": "Source", "widget": "switch" },
+        { "param": "Low Pass", "widget": "knob" },
+        { "param": "Overdub", "widget": "switch" },
+        { "param": "Launch", "widget": "switch" },
+        { "param": "Output", "widget": "switch" },
+        { "param": "Input", "widget": "fader" },
+        { "param": "Mute", "widget": "switch" },
+        { "param": "Follow", "widget": "switch" },
+        { "param": "Feedback", "widget": "fader" }
+      ]
+    },
+    {
+      "name": "TONE",
+      "controls": [
+        { "param": "Master", "widget": "fader" },
+        { "param": "Pan", "widget": "knob", "polarity": "bipolar" },
+        { "param": "Fade", "widget": "knob" },
+        { "param": "Threshold", "widget": "knob", "polarity": "unipolar" },
+        { "param": "Auto Start", "widget": "switch" }
+      ]
+    },
+    {
+      "name": "EDIT",
+      "controls": [
+        { "param": "Undo", "widget": "switch" },
+        { "param": "Redo", "widget": "switch" },
+        { "param": "Clear", "widget": "switch" },
+        { "param": "Reverse", "widget": "switch" },
+        { "param": "Stop", "widget": "switch" },
+        { "param": "Sync", "widget": "switch" },
+        { "param": "Export", "widget": "switch" }
+      ]
+    }
+  ]
+}

@@ -13,6 +13,8 @@ Download the effect ZIP for your device. Gen2 builds are outside this release. I
 
 Read the [MPC guide](docs/MPC-ONE-PLUS.md), [Force guide](docs/FORCE.md), and [build instructions](docs/BUILDING.md).
 
+The external-plugin build for MPC OS 3.10.1 and later is [Official 3.10.1 MPC Version](<Official 3.10.1 MPC Version/README.md>). It does not use the device patches.
+
 ## On the device
 
 | MPC One+ | Force |

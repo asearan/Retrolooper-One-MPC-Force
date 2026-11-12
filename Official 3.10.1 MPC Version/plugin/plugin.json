@@ -1,0 +1,17 @@
+{
+  "name": "Retrolooper One",
+  "manufacturer": "IAMTHEBAND LLC",
+  "version": "1.0.0",
+  "format": "vst2",
+  "kind": "effect",
+  "uid": "IH97",
+  "numInputs": 2,
+  "numOutputs": 2,
+  "category": "Effect",
+  "file32": "VST/retrolooper-one-arm32.so",
+  "file64": "VST/retrolooper-one-arm64.so",
+  "description": "Stereo looper insert that follows MPC tempo and transport, with overdub, undo and WAV export.",
+  "author": "IAMTHEBAND LLC",
+  "url": "",
+  "license": "GPL-3.0-only"
+}
