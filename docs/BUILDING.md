@@ -1,8 +1,8 @@
 # Build Retrolooper One from source
 
-Use Python 3.9+, Pillow, a C++20 compiler, and Zig 0.13.0. The effects target ARMv7 hard-float Linux with glibc 2.28. No JUCE or Steinberg SDK is needed. The native skins use MPC OS 3.x controls.
+Use Python 3.9+, Pillow, a C++20 compiler, and Zig 0.13.0. The MPC effect builds Gen1 ARMv7 (glibc 2.28) and Gen2 aarch64 (glibc 2.31). Force stays on the Gen1 target. No JUCE or Steinberg SDK is needed. The native skins use MPC OS 3.x controls.
 
-Clone [OpenMPC's VST tools](https://github.com/open-mpc/mpc-vst-plugins) with submodules and check out `6dd48faa414bd9e3390e5824b0a0e3126f965dbd` for the skin generator. From this repository's root:
+Clone [OpenMPC's VST tools](https://github.com/open-mpc/mpc-vst-plugins) with submodules and check out `0dc17120cd7e952e95eeecdd820ac9e495a75ee9`. That pin writes `plugin.json` and the MPC OS 3.10.1 zip layout. From this repository's root:
 
 ```sh
 python3 ports/akai/build.py test --sanitize
@@ -24,7 +24,7 @@ python3 ports/akai/force/build_controls.py --zig /path/to/zig
 python3 ports/akai/device-patches/build_patches.py --out /path/to/patch-output
 ```
 
-The `package` commands make local effect ZIPs for development. Catalog release ZIPs should use the current OpenMPC release tooling with the public source, license and portable validation options. Ship the Controls scripts independently as Device patches. Each native build must be profiled and tested before it is supported.
+The `package` commands make local effect ZIPs for development. Catalog drafts are `.github/workflows/release-mpc.yml` and `release-force.yml`. They call OpenMPC `vst-release.yml` at `0dc17120cd7e952e95eeecdd820ac9e495a75ee9` and open draft releases `mpc-v0.4.0` and `force-v0.3.0`. Publish a draft only after installing that zip on MPC OS 3.10.1. Ship the Controls scripts independently as Device patches. Each native build must be profiled and tested before it is supported. Controls 0.2.13 and 0.2.10 stay pinned to MPC One+ 3.10.0.49 and Force 3.10.
 
 ## Trademarks
 

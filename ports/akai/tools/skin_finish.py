@@ -13,7 +13,9 @@ import hardware_ui
 import visual_skin
 import layout_audit
 
-skin=ROOT/'build/skin/RetroLooper - VST - Retrolooper One/Plugin Skins'
+skins=list((ROOT/'build/skin').glob('*/Plugin Skins'))
+if len(skins)!=1: raise SystemExit(f'expected one generated skin, found {skins}')
+skin=skins[0]
 (ROOT/'preview').mkdir(exist_ok=True)
 manifest=hardware_ui.build(skin,shadow_skin)
 visual_skin.make(skin,shadow_skin)

@@ -2,7 +2,7 @@
   "id": "retrolooper-force",
   "name": "Retrolooper One (Force)",
   "kind": "effect",
-  "summary": "Stereo Audio looper for Akai Force with host sync, overdubs, touch/MIDI and WAV export. Native Controls are optional.",
+  "summary": "Stereo Audio looper for Akai Force. On MPC OS 3.10.1, copy the Gen1 build into VST2 Plugins. Loops and exports stay beside the plugin. Native Controls are optional and remain pinned to Force 3.10.",
   "tags": [
     "looper",
     "overdub",

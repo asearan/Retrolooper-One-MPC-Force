@@ -32,7 +32,7 @@
 
 namespace akai {
 using namespace retrolooper;
-constexpr int kVersion=309,kUid=0x526c4f31,kMaxBlock=512,kStateVersion=2,kLegacyParams=56;
+constexpr int kVersion=400,kUid=0x526c4f31,kMaxBlock=512,kStateVersion=2,kLegacyParams=56;
 static std::mutex exportGate;
 static std::mutex allocationGate;
 static std::atomic<uint32_t> nextPadToken{1};
@@ -179,14 +179,19 @@ struct Plugin {
         for(auto& cc:ccs)cc.store(-1);
         for(int i=0;i<7;++i){notes[i].store(36+i);ccs[i].store(20+i);}
         Dl_info info{};
-        if(const char* dir=std::getenv("RETROLOOPER_TEST_LOOPS"))loopFolder=dir;
-        else if(dladdr(reinterpret_cast<void*>(&norm),&info)&&info.dli_fname)loopFolder=std::filesystem::path(info.dli_fname).parent_path()/"Loops";
-        else loopFolder="Loops";
-        exportFolder=loopFolder;
-#if defined(__linux__)
-        if(!std::getenv("RETROLOOPER_TEST_LOOPS")&&::access("/media/az01-internal",F_OK)==0)
-            exportFolder="/media/az01-internal/RetroLooper Exports";
-#endif
+        // MPC OS 3.10.1 loads the folder from any drive's "VST2 Plugins".
+        // Loops and exports stay beside the .so, never on a fixed /sdcard path.
+        if(const char* dir=std::getenv("RETROLOOPER_TEST_LOOPS")){
+            loopFolder=dir;
+            exportFolder=loopFolder;
+        }else if(dladdr(reinterpret_cast<void*>(&norm),&info)&&info.dli_fname){
+            const auto pluginDir=std::filesystem::path(info.dli_fname).parent_path();
+            loopFolder=pluginDir/"Loops";
+            exportFolder=pluginDir/"Exports";
+        }else{
+            loopFolder="Loops";
+            exportFolder="Exports";
+        }
 #ifdef RETROLOOPER_TESTING
         if(!std::getenv("RETROLOOPER_TEST_NO_CONTROLS")){
 #endif

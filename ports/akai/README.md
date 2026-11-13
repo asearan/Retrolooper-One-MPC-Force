@@ -1,8 +1,8 @@
 # Retrolooper One — Force / MPC One+ VST2 beta
 
-Single stereo looper effect for community-plugin-enabled Akai Force and MPC One+ (Gen1). This is an ARM Linux `.so`, not a Mac `.vst` bundle. The devices must already support community VST2 installation. Installation registers the effect with MPC; the physical-button companion is installed separately and preserves the other configured add-ins.
+Single stereo looper effect for Akai Force and MPC. On MPC OS 3.10.1 the folder goes in `VST2 Plugins` at the root of a drive, with External Plugin Support on. The MPC package includes Gen1 armv7 and Gen2 aarch64. Force uses the Gen1 build. This is a Linux `.so`, not a Mac `.vst` bundle. The optional Controls patches are installed separately and stay pinned to MPC One+ 3.10.0.49 and Force 3.10.
 
-## Portable test for MPC 0.3.9 and Force 0.2.10
+## Portable test for MPC 0.4.0 and Force 0.3.0
 
 The two builds share a helper-free engine and keep their existing VST IDs. Install the effect alone for touchscreen and MIDI capture, host tempo and transport, Q-Links and WAV export. Set the Audio track's native monitor to MERGE and leave native REC ARM off if you want to record only into Retrolooper. Set **Take Bars** when the host does not supply a cycle range. For printed effects, put Retrolooper after those effects in the insert chain.
 
@@ -87,7 +87,7 @@ Existing loops automatically conform to the sequence/ratio as well as new takes.
 
 HP and LP are smoothed stereo 12 dB/octave filters, logarithmic from 20 Hz to 20 kHz. Both default to **OFF**. They affect loop playback and exported audio; recorded audio and the MPC's dry monitoring stay editable and independent. Filters, launch mode and the other visible functions support MIDI notes/CC as well as Q-Links.
 
-**Export** works while playing or stopped. It snapshots the active loop and writes a stereo PCM24 WAV including the loop filters, loop/master gain and pan. Over-full-scale renders are scaled uniformly to prevent new clipping during PCM conversion. On the MPC One+, files appear in **Internal drive → RetroLooper Exports → Loop-NN.wav** (`/media/az01-internal/RetroLooper Exports`). The next free slot is selected without overwriting an existing file. Tools can import those files; older files in the plugin's `Loops` folder remain importable. The ARM directory-creation and existing-file metadata failures in earlier WAV exports are fixed using POSIX filesystem calls.
+**Export** works while playing or stopped. It snapshots the active loop and writes a stereo PCM24 WAV including the loop filters, loop/master gain and pan. Over-full-scale renders are scaled uniformly to prevent new clipping during PCM conversion. Files appear in the `Exports` folder next to the plug-in (`Loop-NN.wav`), on whichever drive holds `VST2 Plugins`. The next free slot is selected without overwriting an existing file. Tools can import those files; older files in the plugin's `Loops` folder remain importable. The ARM directory-creation and existing-file metadata failures in earlier WAV exports are fixed using POSIX filesystem calls.
 
 The standalone effect saves a WAV for manual import. On the supported modified MPC One+ 3.10.0.49 host, optional **MPC Controls 0.2.13** can also place the loop at bar 1 of the selected Audio track. Stop MPC and use an empty destination range. Native MPC Undo removes the inserted region.
 
@@ -127,7 +127,7 @@ python3 tools/preview_server.py
 - Live Reverse, stopped Half/Double **length**, Trim/Restore one bar, and Set Bars (1–64, within 120 seconds). Half/Double match the main plugin's bar-length editing; they are not tape-speed controls.
 - **All 52 visible MIDI targets are MIDI-learnable and host-automatable**, including transport, levels, pan, routing, HP/LP filters, launch mode, timing, view, stopped edits, WAV slots/import/export and mapping controls themselves. On MIDI, select a target with its knob/Q-Link or Prev/Next, choose a note gesture, enable Learn and send a note or CC. CC controls span the parameter's entire range (0–127); CC triggers fire once on a 0–63 to 64–127 rising edge. Notes trigger actions, toggle on/off settings, cycle options/integers and step continuous controls by 1/127 of their range. Tap-only notes fire on note-on; double tap and hold need note-off. One CC or note+gesture owns one target per instance; relearning moves that assignment. Notes/CCs accept all MIDI channels. Defaults remain notes 36–42 and CC 20–26 for Record, Play/Stop, Overdub, Mute, Undo, Redo and Clear. Readouts are display-only. Host page tabs remain host navigation.
 - Lossless stereo float audio, controls, and all MIDI bindings in version-2 host project chunks. Version-2 projects with 167 parameters from v0.1.3/0.1.4 retain audio, controls and mappings. Version-1 projects from v0.1.0–0.1.2 migrate their controls and original seven-action bindings. Checksummed state rejects malformed/truncated payloads. Undo history is not serialized. Opening a project restores loops stopped.
-- WAV export writes stereo PCM24 to the next available slot in Internal drive → RetroLooper Exports, while playing or stopped. Import accepts mono/stereo PCM16/24/32 or IEEE float32 WAV and resamples off the audio callback; legacy files next to the `.so` remain importable. Import and destructive length edits require the loop to be stopped.
+- WAV export writes stereo PCM24 to the next available slot in the `Exports` folder beside the plug-in, while playing or stopped. Import accepts mono/stereo PCM16/24/32 or IEEE float32 WAV and resamples off the audio callback; legacy files next to the `.so` remain importable. Import and destructive length edits require the loop to be stopped.
 
 ## Hardware adaptations and limits
 
@@ -149,7 +149,7 @@ Start hardware testing with one empty instance in a disposable project: verify m
 
 Build requirements: Python 3.9+, Clang/Xcode command-line tools for native tests, Pillow for skin generation, and **Zig 0.13.0** for cross-compilation. The parent repository supplies the engine, shared meter-ballistics header, fonts and Signalsmith headers. No JUCE or Steinberg SDK is needed for this target.
 
-The community tools are pinned to `sd88me/mpc-vst-plugins` commit `6dd48faa414bd9e3390e5824b0a0e3126f965dbd`. Clone/check out that revision and pass its path:
+The community tools are pinned to `open-mpc/mpc-vst-plugins` commit `0dc17120cd7e952e95eeecdd820ac9e495a75ee9`. Clone/check out that revision and pass its path:
 
 ```sh
 python3 build.py test --sanitize

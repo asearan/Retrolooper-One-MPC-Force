@@ -1,6 +1,6 @@
 # Retrolooper One — Force build
 
-A dedicated Akai Force build of Retrolooper One, with its own VST ID (`RlF1`). Starting with the 0.2.6 test build, the effect runs without a native helper. Optional Force Controls is a separate Device patch.
+A dedicated Akai Force build of Retrolooper One, with its own VST ID (`RlF1`). 0.3.0 is the MPC OS 3.10.1 package: copy `RetroLooper - VST - RetroLooper One Force` into `VST2 Plugins` on any drive. Loops and exports stay in that folder. It has not been installed on a 3.10.1 Force yet. The effect runs without a native helper. Optional Force Controls is a separate Device patch and stays pinned to Force 3.10.
 
 The stereo looper retains sequence-sized allocation, a 120-second maximum, four undo levels, threshold recording, Reverse, HP/LP filters, MIDI assignments, Wave/Tape/Meter views, project recall and the same graphic style. Touchscreen buttons and physical pads control capture. Force supplies the clock and global transport.
 

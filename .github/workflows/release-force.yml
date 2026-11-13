@@ -1,0 +1,26 @@
+name: Draft Retrolooper One for Force on MPC OS 3.10.1
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: open-mpc/mpc-vst-plugins/.github/workflows/vst-release.yml@0dc17120cd7e952e95eeecdd820ac9e495a75ee9
+    with:
+      tag: force-v0.3.0
+      version: 0.3.0
+      tools_ref: 0dc17120cd7e952e95eeecdd820ac9e495a75ee9
+      vst_dir: ports/akai/force/workspace
+      plugin_id: retrolooper-force
+      license: GPL-3.0-only
+      zig: "0.13.0"
+      user_data: Loops Exports
+      about: "Stereo Audio looper for Akai Force on MPC OS 3.10.1. Copy the Gen1 folder into VST2 Plugins. RlF1 is unchanged. Force does not use the Gen2 build."
+      requires: "Akai Force with MPC OS 3.10.1 External Plugin Support. Install the armv7 zip."
+      extra: "ports/akai/vendor/mpc-vst-plugins-LICENSE:licenses/mpc-vst-plugins-LICENSE third_party/signalsmith-stretch/LICENSE.txt:licenses/signalsmith-stretch-LICENSE.txt third_party/signalsmith-linear/LICENSE.txt:licenses/signalsmith-linear-LICENSE.txt ports/akai/force/README.md:FORCE-STATUS.md ports/akai/force/profile.json:force-profile.json"
+      build: |
+        python3 ports/akai/force/build_force.py arm --zig zig --kit "$MPC_VST"
+        python3 ports/akai/force/build_force.py skin --kit "$MPC_VST"

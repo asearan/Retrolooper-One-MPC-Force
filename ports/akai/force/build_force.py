@@ -43,9 +43,6 @@ def prepare():
         'PRESS PAD BANK A':'SELECT LOOPER PADS','PAD A / LED WAIT':'PADS / LED WAIT','PAD BANK A READY':'LOOPER PADS READY',
         'SEQ %.2g > %.2g B':'LOOP %.2g > %.2g B','A%d%s':'P%d%s'}
     for before,after in translations.items():adapt(source,'"'+before+'"','"'+after+'"')
-    # Use the plugin-relative export folder on Force; no MPC internal-drive path assumptions.
-    adapt(source,'if(!std::getenv("RETROLOOPER_TEST_LOOPS")&&::access("/media/az01-internal",F_OK)==0)\n            exportFolder="/media/az01-internal/RetroLooper Exports";',
-        'if(!std::getenv("RETROLOOPER_TEST_LOOPS"))exportFolder=loopFolder.parent_path()/"Exports";',1)
     for file in ['src/TestBridge.cpp','tests/HostTests.cpp']:
         path=WORK/file;adapt(path,'retrolooper_mpc_',PROFILE['bridge_prefix'])
         s=path.read_text()
@@ -152,6 +149,6 @@ def main():
         title_slug=re.sub(r'[^A-Za-z0-9]+','-',PROFILE['name']).strip('-')
         original=ROOT/f'dist/{title_slug}-{PROFILE["release"]}-mpc-armv7.zip'
         archive=ROOT/f'dist/RetroLooper-One-Force-{PROFILE["release"]}-mpc-armv7.zip'
-        original.replace(archive)
+        if original!=archive:original.replace(archive)
         run([sys.executable,kit/'tools/catalog_check.py',archive])
 if __name__=='__main__':main()

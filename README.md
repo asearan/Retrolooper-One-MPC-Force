@@ -1,15 +1,17 @@
 # Retrolooper One for MPC and Force
 
-Both Gen1 ARMv7 effect packages use the same portable core and retain their existing plug-in IDs for project recall. No native helper is required. On the host Audio track, use Monitor MERGE and turn native REC ARM off to avoid recording to the timeline too. Use the looper touchscreen, MIDI or Q-Links.
+MPC OS 3.10.1 loads third-party VST2 plug-ins from a folder named `VST2 Plugins` at the root of the internal drive, an SD card, or USB, with Preferences → Enhancements → External Plugin Support on. Each plug-in folder needs Akai's `plugin.json`. These builds keep the existing `RlO1` and `RlF1` IDs so saved projects still recall them.
 
-The looper follows host tempo and transport. If the host does not report a cycle range, set **Take Bars** on Mixer; the length multiplier still applies. Both effects export WAV on their own. Native track and pad integration, MPC timeline bounce, and Force Matrix bounce are available through optional firmware-specific Device patches.
+0.4.0 for MPC ships a Gen1 armv7 build and a Gen2 aarch64 build, plus one SDK zip for both. 0.3.0 for Force ships the Gen1 armv7 build Force uses. Loops and WAV exports are stored beside the plug-in, so the same folder works on any drive. Copy an older `Loops` or `Exports` folder into the new one if you already have takes. Remove a leftover copy under `Synths` while testing, or MPC may draw that older skin.
 
-Download the effect ZIP for your device. Gen2 builds are outside this release. Install the matching Controls patch separately if you use one of the exact host builds in its guide.
+These 3.10.1 packages are draft releases until someone installs them on a device. They are not marked tested on 3.10.1. Published 0.3.9 and 0.2.10 still install through the OpenMPC Plugin Manager, which writes `plugin.json` itself. Hand-copying those older zips does not.
 
-| Device | Standalone effect | Optional Controls |
-| --- | --- | --- |
-| MPC One+ | [Retrolooper One 0.3.9](https://github.com/asearan/Retrolooper-One-MPC-Force/releases/tag/mpc-v0.3.9) | [MPC 3.10.0.49 guide](docs/retrolooper-controls-mpc.md) |
-| Force | [Retrolooper One 0.2.10](https://github.com/asearan/Retrolooper-One-MPC-Force/releases/tag/force-v0.2.10) | [Force 3.10 guide](docs/retrolooper-controls-force.md) |
+On the host Audio track, use Monitor MERGE and turn native REC ARM off to avoid recording to the timeline too. Use the looper touchscreen, MIDI or Q-Links. The looper follows host tempo and transport. If the host does not report a cycle range, set **Take Bars** on Mixer. Native track and pad integration stays in the optional Controls patches, which still accept only MPC One+ 3.10.0.49 and Force 3.10. MPC OS 3.10.1 mounts `/etc` read-only, so those patches will not install on 3.10.1.
+
+| Device | MPC OS 3.10.1 draft | Published effect | Optional Controls |
+| --- | --- | --- | --- |
+| MPC, Gen1 and Gen2 | 0.4.0 (`mpc-v0.4.0`) | [0.3.9](https://github.com/asearan/Retrolooper-One-MPC-Force/releases/tag/mpc-v0.3.9) | [MPC 3.10.0.49 guide](docs/retrolooper-controls-mpc.md) |
+| Force | 0.3.0 (`force-v0.3.0`) | [0.2.10](https://github.com/asearan/Retrolooper-One-MPC-Force/releases/tag/force-v0.2.10) | [Force 3.10 guide](docs/retrolooper-controls-force.md) |
 
 Read the [MPC guide](docs/MPC-ONE-PLUS.md), [Force guide](docs/FORCE.md), and [build instructions](docs/BUILDING.md).
 

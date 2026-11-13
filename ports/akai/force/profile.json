@@ -1,9 +1,9 @@
 {
-  "name": "Retrolooper One",
+  "name": "RetroLooper One Force",
   "vendor": "RetroLooper",
   "uid": "RlF1",
-  "version": 210,
-  "release": "0.2.10",
+  "version": 300,
+  "release": "0.3.0",
   "so": "retrolooper_force.so",
   "target": "arm-linux-gnueabihf.2.28",
   "cpu": "cortex_a17",
@@ -16,6 +16,6 @@
   "capture_policy": "Touch/MIDI capture works without Controls; compatible Controls adds selected-track ownership and disarm",
   "physical_pad_mapping": "P1-P8 bottom row; P9-P16 row above; editor-scoped",
   "loop_source": "Force VST2 cycle positions; global Arrange range verification pending",
-  "folder_name": "Retrolooper One",
+  "folder_name": "RetroLooper One Force",
   "controls_name": "Retrolooper One Force Controls"
 }

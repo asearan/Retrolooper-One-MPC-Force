@@ -5,7 +5,9 @@ ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--kit',required=True);a=p.parse_args()
 sys.path.insert(0,str(Path(a.kit)/'tools'))
 import shadow_skin,skin_compat
-skin=ROOT/'build/skin/RetroLooper - VST - Retrolooper One/Plugin Skins'
+skins=list((ROOT/'build/skin').glob('*/Plugin Skins'))
+if len(skins)!=1: raise SystemExit(f'expected one generated skin, found {skins}')
+skin=skins[0]
 tui=json.loads((skin/'TUI.json').read_text());ql=json.loads((skin/'Q-Links.json').read_text())
 modern=[]
 def walk(node):

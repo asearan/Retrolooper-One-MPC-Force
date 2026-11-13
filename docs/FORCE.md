@@ -1,6 +1,6 @@
 # Retrolooper One on Akai Force
 
-Install the Force effect ZIP as an Audio insert. Retrolooper One 0.2.10 keeps the existing `RlF1` VST ID and runs without Controls. The host must already support Gen1 ARMv7 community VST2 loading. Use native Monitor MERGE and REC ARM OFF for loop-only input capture. Place any effects to be printed before the looper.
+On MPC OS 3.10.1, turn on Preferences → Enhancements → External Plugin Support and copy `RetroLooper - VST - RetroLooper One Force` into `VST2 Plugins` at the root of a drive. Force uses the Gen1 armv7 build. 0.3.0 includes `plugin.json` and keeps the `RlF1` ID. Use native Monitor MERGE and REC ARM OFF for loop-only input capture. Place any effects to be printed before the looper. WAV files are written to `Exports` beside the plug-in. 0.3.0 has not been installed on a 3.10.1 Force yet.
 
 Cue a take or overdub on the touchscreen, assign MIDI or a Q-Link if desired, and run Force Play. Retrolooper follows host transport and tempo. When Force supplies a valid cycle range, Retrolooper uses it; otherwise set Take Bars on Mixer. WAV export is available without Controls.
 

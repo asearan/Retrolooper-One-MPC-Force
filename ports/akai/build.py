@@ -14,7 +14,8 @@ import sys
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[1]
 BUILD = ROOT/"build"
-KIT_COMMIT = "6dd48faa414bd9e3390e5824b0a0e3126f965dbd"
+KIT_COMMIT = "0dc17120cd7e952e95eeecdd820ac9e495a75ee9"
+MPC_RELEASE = "0.4.0"
 ENGINE_SOURCES = ["AudioImportAnalysisService.cpp", "LoopTrackStateMachine.cpp", "LooperEngine.cpp", "TaggedTempo.cpp",
                   "TempoEstimator.cpp", "TransportClock.cpp", "QuantizeScheduler.cpp", "Track.cpp", "TempoManager.cpp", "RealtimeTransientDetector.cpp"]
 
@@ -103,6 +104,11 @@ def main():
         run([a.zig,"c++","-target","arm-linux-gnueabihf.2.28","-mcpu=cortex_a17",*compile_flags(),"-shared",
              *sources,"-s","-Wl,--no-undefined","-Wl,--version-script="+str(ROOT/"src/exports.map"),"-ldl","-o",BUILD/"retrolooper_one.so"],env=env)
         run(["file",BUILD/"retrolooper_one.so"])
+        # Gen2 MPCs on MPC OS 3.10.1 are aarch64 and cannot load the armv7 .so.
+        (BUILD/"aarch64").mkdir(exist_ok=True)
+        run([a.zig,"c++","-target","aarch64-linux-gnu.2.31","-mcpu=generic",*compile_flags(),"-shared",
+             *sources,"-s","-Wl,--no-undefined","-Wl,--version-script="+str(ROOT/"src/exports.map"),"-ldl","-o",BUILD/"aarch64/retrolooper_one.so"],env=env)
+        run(["file",BUILD/"aarch64/retrolooper_one.so"])
     if a.action in ("preview","all"):
         run(["clang++",*compile_flags(),"-dynamiclib",*sources,ROOT/"src/TestBridge.cpp","-o",BUILD/"preview-engine.dylib"])
     if a.action in ("skin","package","all"):
@@ -123,15 +129,13 @@ def main():
     if a.action in ("package","all"):
         if not (BUILD/"retrolooper_one.so").is_file():raise SystemExit("Build ARM first")
         run([sys.executable,kit/"tools/release.py","--so",BUILD/"retrolooper_one.so","--skin",skin,
-             "--entry",BUILD/"pluginlist-entry.xml","--version","0.3.9","--id","retrolooper-one","--about","Stereo Audio insert looper with host sync, touch controls and MIDI. Native pad and track integration is optional.",
+             "--entry",BUILD/"pluginlist-entry.xml","--version",MPC_RELEASE,"--id","retrolooper-one","--license","GPL-3.0-only","--repo","asearan/Retrolooper-One-MPC-Force","--about","Stereo Audio looper for MPC OS 3.10.1. Copy the folder into VST2 Plugins. Loops and exports stay beside the plugin.",
              "--user-data","Loops","--user-data","Exports","--extra",ROOT/"vendor/mpc-vst-plugins-LICENSE:licenses/mpc-vst-plugins-LICENSE",
              "--extra",REPO/"third_party/signalsmith-stretch/LICENSE.txt:licenses/signalsmith-stretch-LICENSE.txt",
              "--extra",REPO/"third_party/signalsmith-linear/LICENSE.txt:licenses/signalsmith-linear-LICENSE.txt",
              "--extra",ROOT/"README.md:RETROLOOPER.md",
              "--extra",ROOT/"preview/layout-audit.json:validation/layout-audit.json",
              "--extra",ROOT/"preview/resource-audit.json:validation/resource-audit.json","-o",ROOT/"dist"])
-        archive=ROOT/"dist/RetroLooper-One-0.3.9-mpc-armv7.zip"
-        (ROOT/"dist/Retrolooper-One-0.3.9-mpc-armv7.zip").replace(archive)
-        run([sys.executable,kit/"tools/catalog_check.py",archive])
+        run([sys.executable,kit/"tools/catalog_check.py",ROOT/"dist"/f"Retrolooper-One-{MPC_RELEASE}-mpc-armv7.zip"])
 
 if __name__=="__main__":main()

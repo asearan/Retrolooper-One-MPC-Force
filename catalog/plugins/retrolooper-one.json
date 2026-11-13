@@ -2,7 +2,7 @@
   "id": "retrolooper-one",
   "name": "Retrolooper One (MPC)",
   "kind": "effect",
-  "summary": "Stereo Audio looper for MPC One+ with host sync, overdubs, touch/MIDI and WAV export. Native Controls are optional.",
+  "summary": "Stereo Audio looper for Gen1 and Gen2 MPCs. On MPC OS 3.10.1, copy it into VST2 Plugins. Loops and exports stay beside the plugin. Native Controls are optional and remain pinned to MPC One+ 3.10.0.49.",
   "tags": [
     "looper",
     "overdub",
@@ -13,5 +13,5 @@
   "license": "GPL-3.0-only",
   "style": "looper",
   "screenshot": "https://raw.githubusercontent.com/asearan/Retrolooper-One-MPC-Force/mpc-v0.3.9/docs/images/retrolooper-one-thumbnail.jpg",
-  "asset_pattern": "RetroLooper-One-[0-9]*-mpc-armv7.zip"
+  "asset_pattern": "Retro[Ll]ooper-One-[0-9]*-mpc-armv7.zip"
 }
