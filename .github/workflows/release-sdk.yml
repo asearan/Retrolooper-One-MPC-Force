@@ -1,0 +1,22 @@
+name: Draft the official Retrolooper One SDK plugin
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: open-mpc/mpc-vst-plugins/.github/workflows/vst-release.yml@52c1fb072966d7de77e97dd9eec0544548b042dc
+    with:
+      tag: mpc-sdk-v1.0.0
+      version: "1.0.0"
+      tools_ref: 52c1fb072966d7de77e97dd9eec0544548b042dc
+      sdk_project: Official 3.10.1 MPC Version/plugin
+      plugin_id: retrolooper-one-sdk
+      asset_name: Retrolooper-One-SDK
+      license: GPL-3.0-only
+      user_data: Exports
+      about: "Official MPC Plugin SDK build for MPC OS 3.10.1. New plugin id IH97. It does not open projects saved with RlO1 or RlF1."
+      requires: "MPC OS 3.10.1 External Plugin Support. Gen1 and Gen2. This build does not install device patches."

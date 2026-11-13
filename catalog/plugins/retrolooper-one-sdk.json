@@ -1,0 +1,17 @@
+{
+  "id": "retrolooper-one-sdk",
+  "name": "Retrolooper One (MPC OS 3.10.1)",
+  "kind": "effect",
+  "summary": "Official MPC Plugin SDK looper for Gen1 and Gen2, plugin id IH97. Copy IAMTHEBAND LLC - VST - Retrolooper One into VST2 Plugins. It does not open RlO1 or RlF1 projects, and it does not install device patches.",
+  "tags": [
+    "looper",
+    "overdub",
+    "utility"
+  ],
+  "author": "Retroloop USA / IAMTHEBAND LLC",
+  "repo": "asearan/Retrolooper-One-MPC-Force",
+  "license": "GPL-3.0-only",
+  "style": "looper",
+  "screenshot": "https://raw.githubusercontent.com/asearan/Retrolooper-One-MPC-Force/main/docs/images/retrolooper-one-thumbnail.jpg",
+  "asset_pattern": "Retrolooper-One-SDK-[0-9]*-mpc-armv7.zip"
+}
